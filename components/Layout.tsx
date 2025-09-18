@@ -1,23 +1,37 @@
-
 import React from 'react'
 import Link from 'next/link'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/"><a className="font-semibold text-xl">Dr. Kumar Sumant</a></Link>
-          <nav className="space-x-4">
-            <Link href="/"><a className="hover:underline">Home</a></Link>
-            <Link href="/contact"><a className="hover:underline">Contact</a></Link>
-            <Link href="/chat"><a className="hover:underline">Live Chat</a></Link>
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      {/* Header */}
+      <header className="bg-white dark:bg-gray-800 shadow-md transition-colors duration-300">
+        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+          <Link href="/">
+            <span className="font-bold text-2xl cursor-pointer hover:text-blue-600 transition-colors duration-300">
+              Dr. Kumar Sumant
+            </span>
+          </Link>
+          <nav className="space-x-6">
+            <Link href="/">
+              <span className="hover:text-blue-600 transition-colors duration-300 cursor-pointer">Home</span>
+            </Link>
+            <Link href="/contact">
+              <span className="hover:text-blue-600 transition-colors duration-300 cursor-pointer">Contact</span>
+            </Link>
+            <Link href="/chat">
+              <span className="hover:text-blue-600 transition-colors duration-300 cursor-pointer">Live Chat</span>
+            </Link>
           </nav>
         </div>
       </header>
-      <main className="container mx-auto px-4 py-8 flex-1">{children}</main>
-      <footer className="bg-white border-t">
-        <div className="container mx-auto px-4 py-6 text-sm text-slate-600">
+
+      {/* Main */}
+      <main className="flex-1 container mx-auto px-6 py-10">{children}</main>
+
+      {/* Footer */}
+      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 transition-colors duration-300">
+        <div className="container mx-auto px-6 py-6 text-center text-sm text-slate-600 dark:text-slate-400">
           © {new Date().getFullYear()} Dr. Kumar Sumant · Evidence-based patient education
         </div>
       </footer>

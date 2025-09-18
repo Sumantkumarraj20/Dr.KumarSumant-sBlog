@@ -16,9 +16,11 @@ export default function Post({post}:{post:any}) {
   )
 }
 
-export async function getStaticPaths(){
+export async function getStaticPaths() {
   const posts = (await import('../../lib/posts')).listPosts()
-  const paths = posts.map(p=> ({ params: { slug: p.slug || p.file.replace('.mdx','') }}))
+  const paths = posts.map(p => ({
+    params: { slug: p.slug }
+  }))
   return { paths, fallback: false }
 }
 
