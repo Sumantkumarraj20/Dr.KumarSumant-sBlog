@@ -1,11 +1,19 @@
-import Link from 'next/link';
 
-export default function Home() {
+import Layout from '../components/Layout'
+import { listPosts } from '../lib/posts'
+import PostCard from '../components/PostCard'
+
+export default function Home({posts}:{posts:any[]}) {
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold">Welcome to My Health Blog</h1>
-      <p className="mt-4">Evidence-based guidance for patients in India.</p>
-      <Link href="/posts/first-post" className="text-blue-600 underline mt-2 block">Read first article</Link>
-    </div>
-  );
+    <Layout>
+      <div className="grid md:grid-cols-3 gap-6">
+        {posts.map(p=> <PostCard key={p.slug} meta={p} />)}
+      </div>
+    </Layout>
+  )
+}
+
+export async function getStaticProps(){
+  const posts = listPosts()
+  return { props: { posts } }
 }
