@@ -22,6 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Link href="/chat">
               <span className="hover:text-blue-600 transition-colors duration-300 cursor-pointer">Live Chat</span>
             </Link>
+            <Link href="/about"><span className="hover:text-blue-600 transition-colors duration-300 cursor-pointer">About</span></Link>
           </nav>
         </div>
       </header>
