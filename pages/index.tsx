@@ -1,8 +1,22 @@
 import Layout from "../components/Layout";
 import { listPosts } from "../lib/posts";
 import PostCard from "../components/PostCard";
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { GetStaticProps } from 'next';
 
-export default function Home({ posts }: { posts: any[] }) {
+interface Post {
+  slug: string;
+  title: string;
+  date: string;
+  excerpt: string;
+  // add other post properties
+}
+
+interface HomeProps {
+  posts: Post[];
+}
+
+export default function Home({ posts }: HomeProps) {
   return (
     <Layout>
       <div className="grid md:grid-cols-3 gap-6">
@@ -14,7 +28,13 @@ export default function Home({ posts }: { posts: any[] }) {
   );
 }
 
-export async function getStaticProps() {
+export const getStaticProps: GetStaticProps = async ({ locale }) => {
   const posts = listPosts();
-  return { props: { posts } };
-}
+  
+  return {
+    props: {
+      posts,
+      ...(await serverSideTranslations(locale || 'en', ['nav', 'common'])),
+    },
+  };
+};

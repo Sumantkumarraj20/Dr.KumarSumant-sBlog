@@ -1,1 +1,11 @@
-{"version":4,"routes":{"/posts/Fever-practical-guide":{},"/posts/diabetes-practical-guide":{},"/posts/vaccines-patients":{},"/posts/nutrition-essentials":{}},"dynamicRoutes":{"/posts/[slug]":{"dataRoute":null,"dataRouteRegex":null,"fallback":false,"fallbackRevalidate":false,"fallbackSourceRoute":"/posts/[slug]","routeRegex":"^\\/posts\\/([^/]+?)(?:\\/)?$","allowHeader":[]}},"notFoundRoutes":[],"preview":{"previewModeId":"a74a644f657fbafc9b59bb77a5df7705","previewModeSigningKey":"7d8791008951f5cbf2e02459f7863f2161a621a5e86264a78b643d31f9b3b203","previewModeEncryptionKey":"f7d932d40c3a7e6baa513b1109fdb4d5c7ca1616af1245b2f22154bcca11b96a"}}
+{
+  "version": 4,
+  "routes": {},
+  "dynamicRoutes": {},
+  "notFoundRoutes": [],
+  "preview": {
+    "previewModeId": "990fa40577963ee33545dc76df24843b",
+    "previewModeSigningKey": "a6113f826c569832c03f508a2801bbb61d60bc94a3af21309bc7ba991e49ffea",
+    "previewModeEncryptionKey": "ea40dbc0a7e63a2c129b543e1d4f4fda2fe91cf329fafa643c141ef8a9f01ddf"
+  }
+}

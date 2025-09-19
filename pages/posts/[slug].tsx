@@ -16,12 +16,18 @@ export default function Post({post}:{post:any}) {
   )
 }
 
-export async function getStaticPaths() {
-  const posts = (await import('../../lib/posts')).listPosts()
-  const paths = posts.map(p => ({
-    params: { slug: p.slug }
-  }))
-  return { paths, fallback: false }
+export async function getStaticPaths({ locales }: { locales: string[] }) {
+  const posts = (await import("../../lib/posts")).listPosts();
+
+  // Build a path for each locale
+  const paths = posts.flatMap((p) =>
+    locales.map((lng) => ({
+      params: { slug: p.slug || p.file.replace(".mdx", "") },
+      locale: lng,
+    }))
+  );
+
+  return { paths, fallback: false };
 }
 
 export async function getStaticProps({params}:{params:any}){
