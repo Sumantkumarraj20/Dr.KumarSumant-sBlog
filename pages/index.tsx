@@ -19,21 +19,15 @@ interface HomeProps {
 export default function Home({ posts }: HomeProps) {
   return (
     <Layout>
-      <div className="grid md:grid-cols-3 gap-6">
-        {posts.map((post) => (
-          <PostCard key={post.slug} meta={post} />
-        ))}
-      </div>
+      <div className="grid md:grid-cols-3 gap-6">Home</div>
     </Layout>
   );
 }
 
-export const getStaticProps: GetStaticProps = async ({ locale }) => {
-  const posts = listPosts();
-  
+export const getStaticProps: GetStaticProps = async ({locale}) => {
+ 
   return {
     props: {
-      posts,
       ...(await serverSideTranslations(locale || 'en', ['nav', 'common'])),
     },
   };

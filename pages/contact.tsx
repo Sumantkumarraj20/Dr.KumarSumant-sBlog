@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabaseClient'
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { GetStaticProps } from 'next';
 
 export default function Contact() {
   const [name, setName] = useState('')
@@ -88,3 +90,12 @@ export default function Contact() {
     </Layout>
   )
 }
+
+export const getStaticProps: GetStaticProps = async ({ locale }) => {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale || 'en', ['nav', 'common'])),
+    },
+    revalidate: 60,
+  };
+};

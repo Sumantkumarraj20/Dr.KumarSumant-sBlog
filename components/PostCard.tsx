@@ -1,21 +1,25 @@
-import Link from 'next/link'
+import Link from "next/link";
 
-type PostCardProps = {
+export type PostCardProps = {
   meta: {
-    title: string
-    slug: string
-    date: string
-    tags?: string[]
-    description?: string
-    thumbnail?: string // optional image URL
-  }
-}
+    title: string;
+    slug: string;
+    date: string;
+    lang: string;
+    category: string;
+    tags?: string[];
+    description?: string;
+    thumbnail?: string;
+  };
+};
+
+/** Generate dynamic post URL */
+const getPostLink = (meta: { lang: string; category: string; slug: string }) =>
+  `/${meta.lang}/${meta.category}/${meta.slug}`;
 
 export default function PostCard({ meta }: PostCardProps) {
   return (
     <article className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden group transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-      
-      {/* Thumbnail */}
       {meta.thumbnail && (
         <div className="relative overflow-hidden h-48 md:h-52">
           <img
@@ -28,7 +32,6 @@ export default function PostCard({ meta }: PostCardProps) {
       )}
 
       <div className="p-6 flex flex-col justify-between h-full">
-        {/* Tags */}
         <div className="flex flex-wrap gap-2 mb-2">
           {meta.tags?.map((tag) => (
             <span
@@ -40,30 +43,24 @@ export default function PostCard({ meta }: PostCardProps) {
           ))}
         </div>
 
-        {/* Title */}
         <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
           <Link
-            href={`/posts/${meta.slug}`}
+            href={getPostLink(meta)}
             className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
           >
             {meta.title}
           </Link>
         </h3>
 
-        {/* Date */}
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-          {meta.date}
-        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">{meta.date}</p>
 
-        {/* Description */}
         <p className="text-slate-700 dark:text-slate-200 mb-4 line-clamp-3">
-          {meta.description || ''}
+          {meta.description || ""}
         </p>
 
-        {/* Read More */}
         <div>
           <Link
-            href={`/posts/${meta.slug}`}
+            href={getPostLink(meta)}
             className="inline-block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
           >
             Read More →
@@ -71,5 +68,5 @@ export default function PostCard({ meta }: PostCardProps) {
         </div>
       </div>
     </article>
-  )
+  );
 }
