@@ -1,36 +1,65 @@
+// pages/[slug].tsx
+import { GetStaticPaths, GetStaticProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { MDXRemote, MDXRemoteSerializeResult } from "next-mdx-remote";
+import Layout from "../../components/Layout";
+import { getPostBySlug, listPosts, PostMeta } from "../../lib/posts";
+import LangBlock from "../../components/LangBlock"; 
 
-import Layout from '../../components/Layout'
-import { getPostBySlug } from '../../lib/posts'
-import { MDXRemote } from 'next-mdx-remote'
+interface PostPageProps {
+  post: { mdxSource: MDXRemoteSerializeResult; meta: PostMeta } | null;
+}
 
-export default function Post({post}:{post:any}) {
-  if(!post) return <Layout><div>Post not found</div></Layout>
+export default function PostPage({ post }: PostPageProps) {
+  if (!post) {
+    return (
+      <Layout>
+        <div className="p-10 text-center text-xl text-gray-600">
+          Post not found
+        </div>
+      </Layout>
+    );
+  }
+
+  const { meta, mdxSource } = post;
+
   return (
     <Layout>
-      <article className="prose max-w-none">
-        <h1>{post.meta.title}</h1>
-        <p className="text-sm text-slate-500">{post.meta.date} · {post.meta.tags?.join(', ')}</p>
-        <MDXRemote {...post.mdxSource} />
+      <article className="prose max-w-3xl mx-auto px-4">
+        <header className="mb-8">
+          <h1 className="text-4xl font-bold">{meta.title}</h1>
+          <p className="text-sm text-slate-500">
+            {meta.date}
+            {meta.tags?.length ? ` · ${meta.tags.join(", ")}` : ""}
+          </p>
+        </header>
+
+        {/* Pass components here 👇 */}
+        <MDXRemote {...mdxSource} components={{ LangBlock }} />
       </article>
     </Layout>
-  )
+  );
 }
 
-export async function getStaticPaths({ locales }: { locales: string[] }) {
-  const posts = (await import("../../lib/posts")).listPosts();
-
-  // Build a path for each locale
-  const paths = posts.flatMap((p) =>
-    locales.map((lng) => ({
-      params: { slug: p.slug || p.file.replace(".mdx", "") },
-      locale: lng,
-    }))
-  );
+export const getStaticPaths: GetStaticPaths = async ({ locales }) => {
+  const posts = listPosts();
+  const paths =
+    locales?.flatMap((lng) =>
+      posts.map((p) => ({
+        params: { slug: p.slug },
+        locale: lng,
+      }))
+    ) ?? [];
 
   return { paths, fallback: false };
-}
+};
 
-export async function getStaticProps({params}:{params:any}){
-  const post = await getPostBySlug(params.slug)
-  return { props: { post } }
-}
+export const getStaticProps: GetStaticProps = async ({ params, locale }) => {
+  const post = await getPostBySlug(params?.slug as string);
+  return {
+    props: {
+      post,
+      ...(await serverSideTranslations(locale ?? "en", ["common", "nav"])),
+    },
+  };
+};

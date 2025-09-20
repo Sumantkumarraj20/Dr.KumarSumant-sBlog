@@ -1,13 +1,15 @@
-
-import '../styles/globals.css'
-import type { AppProps } from 'next/app'
+import '../styles/globals.css';
+import type { AppProps } from 'next/app';
 import { AuthProvider } from '../context/authContext';
-import { appWithTranslation } from 'next-i18next'
+import { appWithTranslation } from 'next-i18next';
+import { LanguageProvider } from '../context/languageContext';
 
 function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
-      <Component {...pageProps} />
+      <LanguageProvider>
+        <Component {...pageProps} />
+      </LanguageProvider>
     </AuthProvider>
   );
 }
