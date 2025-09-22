@@ -121,6 +121,13 @@ export async function getPostBySlug(
         const postSlug = (data.slug as string) ?? file.replace(/\.mdx$/, "");
         if (postSlug !== slug) continue;
 
+        // Debug: log when we find a matching slug (helpful during build/dev)
+        if (process.env.NODE_ENV !== 'production') {
+          try {
+            console.log(`DEBUG: getPostBySlug matched slug="${slug}" in file=${path.join(dir, file)} (lang=${lng}, category=${cat})`);
+          } catch (e) {}
+        }
+
         const mdxSource = await serialize(content, {
           scope: data,
           mdxOptions: { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeHighlight] },

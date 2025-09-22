@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useTranslation } from 'next-i18next';
+// Don't call useTranslation at module/top-level to avoid NO_I18NEXT_INSTANCE during SSR
 
 interface LanguageContextProps {
   language: string;
@@ -11,24 +11,22 @@ const LanguageContext = createContext<LanguageContextProps | undefined>(undefine
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
-  const { i18n } = useTranslation(); // <-- safe initialized i18n
-  const [language, setLanguage] = useState(i18n.language || 'en');
+  const [language, setLanguage] = useState(router.locale || 'en');
 
   const changeLanguage = (lng: string) => {
-    if (i18n.language !== lng) {
-      i18n.changeLanguage(lng);
+    // Use Next router to change locale; let next-i18next handle i18n initialization
+    if (router.locale !== lng) {
       setLanguage(lng);
       router.push(router.pathname, router.asPath, { locale: lng, scroll: false });
     }
   };
 
   useEffect(() => {
-    // Make sure i18n is initialized before calling changeLanguage
-    if (router.locale && router.locale !== language && i18n.isInitialized) {
-      i18n.changeLanguage(router.locale);
+    // sync language state with router.locale once router is available
+    if (router.locale && router.locale !== language) {
       setLanguage(router.locale);
     }
-  }, [router.locale, i18n.isInitialized]);
+  }, [router.locale]);
 
   return (
     <LanguageContext.Provider value={{ language, changeLanguage }}>

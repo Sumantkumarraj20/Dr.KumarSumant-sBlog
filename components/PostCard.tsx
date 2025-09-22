@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from 'next/router';
 
 export type PostCardProps = {
   meta: {
@@ -13,11 +14,12 @@ export type PostCardProps = {
   };
 };
 
-/** Generate dynamic post URL */
-const getPostLink = (meta: { lang: string; category: string; slug: string }) =>
-  `/${meta.lang}/${meta.category}/${meta.slug}`;
+/** Generate localized post URL string */
+const getPostHref = (meta: { category: string; slug: string; lang: string }, locale?: string) =>
+  `/${locale || meta.lang}/${meta.category}/${meta.slug}`;
 
 export default function PostCard({ meta }: PostCardProps) {
+  const { locale } = useRouter();
   return (
     <article className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden group transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
       {meta.thumbnail && (
@@ -45,7 +47,7 @@ export default function PostCard({ meta }: PostCardProps) {
 
         <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
           <Link
-            href={getPostLink(meta)}
+            href={getPostHref(meta, locale || meta.lang)}
             className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
           >
             {meta.title}
@@ -60,7 +62,7 @@ export default function PostCard({ meta }: PostCardProps) {
 
         <div>
           <Link
-            href={getPostLink(meta)}
+            href={getPostHref(meta, locale || meta.lang)}
             className="inline-block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
           >
             Read More →

@@ -1,78 +1,51 @@
-"use client";
+import { Accordion, AccordionItem, AccordionButton, AccordionPanel, Box } from '@chakra-ui/react';
 
-import React, { createContext, useContext, useState } from "react";
-
-type CollapsibleContextType = {
-  isOpen: boolean;
-  toggle: () => void;
-};
-
-const CollapsibleContext = createContext<CollapsibleContextType | null>(null);
-
-interface RootProps {
+interface CollapsibleProps {
   defaultOpen?: boolean;
   children: React.ReactNode;
   className?: string;
 }
 
-/** Root container providing open/close state */
-export const Collapsible: React.FC<RootProps> = ({
-  defaultOpen = false,
-  children,
-  className = "",
-}) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  const toggle = () => setIsOpen((p) => !p);
-
+/**
+ * Simple Chakra-based collapsible implementation. It preserves the exported
+ * component names used throughout the app so MDX content can import
+ * Collapsible, CollapsibleTrigger, and CollapsibleContent without changes.
+ */
+export const Collapsible = ({ defaultOpen = false, children }: CollapsibleProps) => {
+  // Chakra's Accordion can be used to create a single collapsible region.
   return (
-    <CollapsibleContext.Provider value={{ isOpen, toggle }}>
-      <div className={`my-2 border rounded shadow-sm ${className}`}>
-        {children}
-      </div>
-    </CollapsibleContext.Provider>
+    <Accordion allowToggle defaultIndex={defaultOpen ? [0] : []} className="my-2">
+      <AccordionItem border="1px solid" borderColor="gray.200" borderRadius="md" overflow="hidden">
+        {children as any}
+      </AccordionItem>
+    </Accordion>
   );
 };
 
-function useCollapsible() {
-  const ctx = useContext(CollapsibleContext);
-  if (!ctx) throw new Error("Collapsible sub-components must be inside <Collapsible>");
-  return ctx;
-}
+export const CollapsibleTrigger = ({ children, ...props }: any) => (
+  <AccordionButton as={Box} px={4} py={3} fontWeight="semibold" {...props}>
+    {children}
+  </AccordionButton>
+);
 
-/** Button to toggle visibility */
-export const CollapsibleTrigger: React.FC<
-  React.ButtonHTMLAttributes<HTMLButtonElement>
-> = ({ children, className = "", ...props }) => {
-  const { isOpen, toggle } = useCollapsible();
-  return (
-    <button
-      {...props}
-      onClick={(e) => {
-        props.onClick?.(e);
-        toggle();
-      }}
-      aria-expanded={isOpen}
-      className={`w-full text-left font-semibold py-2 px-4 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring ${className}`}
-    >
-      {children}
-    </button>
-  );
-};
+export const CollapsibleContent = ({ children, ...props }: any) => (
+  <AccordionPanel px={4} py={3} bg="gray.50" {...props}>
+    {children}
+  </AccordionPanel>
+);
 
-/** Animated content area */
-export const CollapsibleContent: React.FC<{ children: React.ReactNode; className?: string }> = ({
-  children,
-  className = "",
-}) => {
-  const { isOpen } = useCollapsible();
+// Provide a simple Chakra-based Collapse component that matches the
+// MDX usage: <Collapse title="...">content</Collapse>
+export const Collapse = ({ title, children }: { title?: React.ReactNode; children: React.ReactNode }) => {
   return (
-    <div
-      className={`overflow-hidden transition-all duration-300 ${
-        isOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"
-      }`}
-    >
-      <div className={`p-4 bg-gray-50 border-t ${className}`}>{children}</div>
-    </div>
+    <Accordion allowToggle className="my-2">
+      <AccordionItem border="1px solid" borderColor="gray.200" borderRadius="md" overflow="hidden">
+        <AccordionButton as={Box} px={4} py={3} fontWeight="semibold">
+          <Box flex="1" textAlign="left">{title}</Box>
+        </AccordionButton>
+        <AccordionPanel px={4} py={3} bg="gray.50">{children}</AccordionPanel>
+      </AccordionItem>
+    </Accordion>
   );
 };
 
