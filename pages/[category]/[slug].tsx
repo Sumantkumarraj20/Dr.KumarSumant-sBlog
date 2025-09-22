@@ -1,31 +1,33 @@
+"use client";
+
 import { GetStaticPaths, GetStaticProps } from "next";
 import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { MDXRemote, MDXRemoteSerializeResult } from "next-mdx-remote";
 import Layout from "../../components/Layout";
-// LangBlock is a client component; provide a server-safe replacement below
-import { Collapsible, CollapsibleTrigger, CollapsibleContent, Collapse } from "../../components/ui/Collapsible";
-import { Tooltip } from "../../components/ui/Tooltip";
-import Image from 'next/image';
-import { Tabs, TabList, Tab, TabPanel } from '@chakra-ui/react';
-import { getPostBySlug, listPosts, PostMeta, getCategories } from "@/lib/posts";
-import { ChakraProvider } from '@chakra-ui/react';
-import { extendTheme } from '@chakra-ui/react';
-import { AuthProvider } from '../../context/authContext';
-import { LanguageProvider } from '../../context/languageContext';
+import { ChakraProvider, extendTheme, Box, Text, VStack, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Table, Thead, Tbody, Tr, Th, Td, Code } from "@chakra-ui/react";
+import { AuthProvider } from "../../context/authContext";
+import { LanguageProvider } from "../../context/languageContext";
+import { getPostBySlug, PostMeta } from "@/lib/posts";
 
-// base components mapping; LangBlock will be injected per-post to access meta.lang
-const baseComponents = {
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-  Collapse,
-  Tooltip,
-  // Provide a lightweight Image component for MDX content that expects <Image>
-  Image: (props: any) => <img {...props} />,
-  Tabs,
-  TabList,
-  Tab,
-  TabPanel,
+// MDX components mapping
+const components = {
+  Box,
+  Text,
+  VStack,
+  img: (props: any) => <img {...props} className="rounded-md shadow-md my-4" />,
+  table: Table,
+  thead: Thead,
+  tbody: Tbody,
+  tr: Tr,
+  th: Th,
+  td: Td,
+  code: Code,
+  // Accordion for collapsible sections in MDX
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
 };
 
 interface PostPageProps {
@@ -33,46 +35,86 @@ interface PostPageProps {
 }
 
 export default function PostPage({ post }: PostPageProps) {
-  if (!post) return <Layout><div className="p-10 text-center text-xl text-gray-600">Post not found</div></Layout>;
+  if (!post)
+    return (
+      <Layout>
+        <Box p={10} textAlign="center" fontSize="xl" color="gray.600">
+          Post not found
+        </Box>
+      </Layout>
+    );
 
   const { meta, mdxSource } = post;
 
-  const theme = extendTheme({});
-
-  // Server-side LangBlock component that checks the post's declared language
-  const ServerLangBlock = ({ lang, children }: { lang: string; children: React.ReactNode }) => {
-    // meta.lang can be an array in frontmatter; normalize to string
-    const postLang = Array.isArray(meta.lang) ? meta.lang[0] : (meta.lang as string) || meta.lang || '';
-    return postLang === lang ? <>{children}</> : null;
-  };
-
-  const components = { ...baseComponents, LangBlock: ServerLangBlock };
+  // Chakra theme
+  const theme = extendTheme({
+    styles: {
+      global: {
+        body: {
+          bg: "gray.50",
+          color: "gray.800",
+        },
+      },
+    },
+  });
 
   return (
-    <Layout>
-      <article className="prose max-w-3xl mx-auto px-4">
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold">{meta.title}</h1>
-          <p className="text-sm text-slate-500">{meta.date}{meta.tags?.length ? ` \u00b7 ${meta.tags.join(", ")}` : ""}</p>
-        </header>
-        <ChakraProvider theme={theme}>
-          <AuthProvider>
-            <LanguageProvider>
-              <MDXRemote {...mdxSource} components={components} />
-            </LanguageProvider>
-          </AuthProvider>
-        </ChakraProvider>
-      </article>
-    </Layout>
+    <ChakraProvider theme={theme}>
+      <AuthProvider>
+        <LanguageProvider>
+          <Layout>
+            <Box maxW="5xl" mx="auto" px={4} py={10}>
+              {/* Post Header */}
+              <VStack spacing={2} mb={10} align="start">
+                <Text as="h1" fontSize="4xl" fontWeight="bold">
+                  {meta.title}
+                </Text>
+                <Text fontSize="sm" color="gray.500">
+                  {meta.date}
+                  {meta.tags?.length ? ` · ${meta.tags.join(", ")}` : ""}
+                </Text>
+                {meta.description && (
+                  <Text fontSize="md" mt={2} color="gray.600">
+                    {meta.description}
+                  </Text>
+                )}
+              </VStack>
+
+              {/* MDX Content */}
+              <Box
+                className="prose prose-slate dark:prose-invert max-w-none"
+                sx={{
+                  h1: { fontSize: "2xl", fontWeight: "bold", mt: 8, mb: 4 },
+                  h2: { fontSize: "xl", fontWeight: "semibold", mt: 6, mb: 3 },
+                  h3: { fontSize: "lg", fontWeight: "semibold", mt: 5, mb: 2 },
+                  p: { lineHeight: "tall", mb: 3 },
+                  li: { mb: 2 },
+                  blockquote: { borderLeft: "4px solid", borderColor: "blue.400", pl: 4, fontStyle: "italic", color: "gray.600" },
+                  table: { width: "full", borderCollapse: "collapse", mb: 6 },
+                  th: { borderBottom: "2px solid", borderColor: "gray.300", p: 2, textAlign: "left" },
+                  td: { borderBottom: "1px solid", borderColor: "gray.200", p: 2 },
+                  em: { fontStyle: "italic" }, // fix italic rendering
+                  strong: { fontWeight: "semibold" },
+                }}
+              >
+                <MDXRemote {...mdxSource} components={components} />
+              </Box>
+            </Box>
+          </Layout>
+        </LanguageProvider>
+      </AuthProvider>
+    </ChakraProvider>
   );
 }
 
-export const getStaticPaths: GetStaticPaths = async ({ locales }) => {
-  return { paths: [], fallback: 'blocking' };
+// Static paths (fallback)
+export const getStaticPaths: GetStaticPaths = async () => {
+  return { paths: [], fallback: "blocking" };
 };
 
+// Static props for post
 export const getStaticProps: GetStaticProps = async ({ params, locale }) => {
-  const lang = locale as string || 'en';
+  const lang = locale || "en";
   const category = params?.category as string;
   const slug = params?.slug as string;
 
@@ -81,8 +123,7 @@ export const getStaticProps: GetStaticProps = async ({ params, locale }) => {
   return {
     props: {
       post,
-      ...(await serverSideTranslations(lang ?? 'en', ["common", "nav"])),
+      ...(await serverSideTranslations(lang, ["common", "nav"])),
     },
   };
 };
-

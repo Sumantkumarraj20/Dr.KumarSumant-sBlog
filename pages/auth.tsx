@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { signIn, signUp } from "../lib/auth";
 import { supabase } from "../lib/supabaseClient";
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { GetStaticProps } from 'next';
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
@@ -113,3 +115,11 @@ export default function AuthPage() {
     </div>
   );
 }
+export const getStaticProps: GetStaticProps = async ({ locale }) => {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale || 'en', ['nav', 'common'])),
+    },
+    revalidate: 60,
+  };
+};

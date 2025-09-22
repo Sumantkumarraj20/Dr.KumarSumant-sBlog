@@ -1,5 +1,18 @@
+"use client";
+
 import Link from "next/link";
-import { useRouter } from 'next/router';
+import { useRouter } from "next/router";
+import {
+  Box,
+  Image,
+  Heading,
+  Text,
+  Tag,
+  Wrap,
+  WrapItem,
+  Flex,
+  useColorModeValue,
+} from "@chakra-ui/react";
 
 export type PostCardProps = {
   meta: {
@@ -14,61 +27,120 @@ export type PostCardProps = {
   };
 };
 
-/** Generate localized post URL string */
-const getPostHref = (meta: { category: string; slug: string; lang: string }, locale?: string) =>
-  `/${locale || meta.lang}/${meta.category}/${meta.slug}`;
+const getPostHref = (
+  meta: { category: string; slug: string; lang: string },
+  locale?: string
+) => `/${locale || meta.lang}/${meta.category}/${meta.slug}`;
 
 export default function PostCard({ meta }: PostCardProps) {
   const { locale } = useRouter();
+  const href = getPostHref(meta, locale || meta.lang);
+
+  const bgCard = useColorModeValue("white", "gray.800");
+  const textColor = useColorModeValue("gray.900", "gray.50");
+  const textDesc = useColorModeValue("gray.700", "gray.300");
+  const tagBg = useColorModeValue("blue.50", "blue.900");
+  const tagColor = useColorModeValue("blue.700", "blue.200");
+
   return (
-    <article className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden group transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+    <Box
+      as="article"
+      bg={bgCard}
+      rounded="xl"
+      overflow="hidden"
+      shadow="md"
+      transition="all 0.3s"
+      _hover={{ shadow: "xl", transform: "translateY(-4px)" }}
+      minH="420px"
+      display="flex"
+      flexDirection="column"
+      role="group"
+    >
+      {/* Thumbnail */}
       {meta.thumbnail && (
-        <div className="relative overflow-hidden h-48 md:h-52">
-          <img
+        <Box position="relative" h={{ base: "48", md: "52" }} overflow="hidden">
+          <Image
             src={meta.thumbnail}
             alt={meta.title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            objectFit="cover"
+            w="full"
+            h="full"
+            transition="transform 0.5s"
+            _groupHover={{ transform: "scale(1.05)" }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        </div>
+          <Box
+            position="absolute"
+            inset={0}
+            bgGradient="linear(to-t, blackAlpha.400, transparent)"
+            opacity={0}
+            _groupHover={{ opacity: 1 }}
+            transition="opacity 0.3s"
+          />
+        </Box>
       )}
 
-      <div className="p-6 flex flex-col justify-between h-full">
-        <div className="flex flex-wrap gap-2 mb-2">
-          {meta.tags?.map((tag) => (
-            <span
-              key={tag}
-              className="text-xs font-medium bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full"
+      {/* Content */}
+      <Box flex="1" p={6} display="flex" flexDirection="column">
+        {/* Tags */}
+        {meta.tags?.length ? (
+          <Wrap spacing={2} mb={3}>
+            {meta.tags.map((tag) => (
+              <WrapItem key={tag}>
+                <Tag size="sm" bg={tagBg} color={tagColor}>
+                  {tag}
+                </Tag>
+              </WrapItem>
+            ))}
+          </Wrap>
+        ) : null}
+
+        {/* Title */}
+        <Heading
+          as="h3"
+          size="md"
+          mb={1}
+          color={textColor}
+          lineHeight="short"
+        >
+          <Link href={href} passHref>
+            <Box
+              as="a"
+              _hover={{ color: "blue.500" }}
+              _dark={{ _hover: { color: "blue.400" } }}
             >
-              {tag}
-            </span>
-          ))}
-        </div>
-
-        <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
-          <Link
-            href={getPostHref(meta, locale || meta.lang)}
-            className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
-          >
-            {meta.title}
+              {meta.title}
+            </Box>
           </Link>
-        </h3>
+        </Heading>
 
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">{meta.date}</p>
+        {/* Date */}
+        <Text fontSize="sm" color={useColorModeValue("gray.500", "gray.400")} mb={2}>
+          {meta.date}
+        </Text>
 
-        <p className="text-slate-700 dark:text-slate-200 mb-4 line-clamp-3">
-          {meta.description || ""}
-        </p>
+        {/* Description */}
+        {meta.description && (
+          <Text color={textDesc} mb={4} noOfLines={3}>
+            {meta.description}
+          </Text>
+        )}
 
-        <div>
-          <Link
-            href={getPostHref(meta, locale || meta.lang)}
-            className="inline-block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Read More →
+        {/* Read More */}
+        <Flex mt="auto" pt={2}>
+          <Link href={href} passHref>
+            <Text
+              as="a"
+              fontSize="sm"
+              fontWeight="medium"
+              color="blue.500"
+              _dark={{ color: "blue.400" }}
+              _hover={{ textDecoration: "underline" }}
+            >
+              Read More →
+            </Text>
           </Link>
-        </div>
-      </div>
-    </article>
+        </Flex>
+      </Box>
+    </Box>
   );
 }

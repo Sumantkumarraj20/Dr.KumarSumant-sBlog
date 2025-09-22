@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import Layout from '../components/Layout';
 import ChatBox from '../components/ChatBox';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { GetStaticProps } from 'next';
 
 export default function ChatPage() {
   const [session, setSession] = useState<any>(null);
@@ -37,3 +39,11 @@ export default function ChatPage() {
     </Layout>
   );
 }
+export const getStaticProps: GetStaticProps = async ({ locale }) => {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale || 'en', ['nav', 'common'])),
+    },
+    revalidate: 60,
+  };
+};
