@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { GetStaticProps } from 'next';
 
-const MotionBox = motion(Box);
+const MotionBox = motion.create ? motion.create(Box) : motion(Box);
 
 const photos = [
   {
@@ -73,8 +73,8 @@ export default function About() {
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-white">
         <div className="max-w-6xl mx-auto px-6 py-24 text-center relative z-10">
           <Image
-            src="/images/profile.jpg"
-            alt="Dr. Kumar Sumant"
+            src="/images/graduation.jpg"
+            alt="Graduation"
             width={160}
             height={160}
             className="rounded-full mx-auto mb-6 border-4 border-white shadow-xl"

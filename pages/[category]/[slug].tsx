@@ -4,31 +4,14 @@ import { GetStaticPaths, GetStaticProps } from "next";
 import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { MDXRemote, MDXRemoteSerializeResult } from "next-mdx-remote";
 import Layout from "../../components/Layout";
-import { ChakraProvider, extendTheme, Box, Text, VStack, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Table, Thead, Tbody, Tr, Th, Td, Code } from "@chakra-ui/react";
+import { Box, Text, VStack, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Table, Thead, Tbody, Tr, Th, Td, Code, Image } from "@chakra-ui/react";
+import dynamic from "next/dynamic";
+import MCQ from "../../components/MCQ";
 import { AuthProvider } from "../../context/authContext";
 import { LanguageProvider } from "../../context/languageContext";
 import { getPostBySlug, PostMeta } from "@/lib/posts";
 
-// MDX components mapping
-const components = {
-  Box,
-  Text,
-  VStack,
-  img: (props: any) => <img {...props} className="rounded-md shadow-md my-4" />,
-  table: Table,
-  thead: Thead,
-  tbody: Tbody,
-  tr: Tr,
-  th: Th,
-  td: Td,
-  code: Code,
-  // Accordion for collapsible sections in MDX
-  Accordion,
-  AccordionItem,
-  AccordionButton,
-  AccordionPanel,
-  AccordionIcon,
-};
+// Note: MDX components mapping is created inside PostPage so we can use Chakra's theming
 
 interface PostPageProps {
   post: { mdxSource: MDXRemoteSerializeResult; meta: PostMeta } | null;
@@ -46,24 +29,47 @@ export default function PostPage({ post }: PostPageProps) {
 
   const { meta, mdxSource } = post;
 
-  // Chakra theme
-  const theme = extendTheme({
-    styles: {
-      global: {
-        body: {
-          bg: "gray.50",
-          color: "gray.800",
-        },
-      },
+  // MDX components mapping (use Chakra Image for responsive full-width images)
+  const mdxComponents = {
+    Box,
+    Text,
+    VStack,
+    img: (props: any) => {
+      const src = props.src || "https://placehold.co/600x400/EEE/31343C";
+      const alt = props.alt || "";
+      return (
+        <Image
+          src={src}
+          alt={alt}
+          w="full"
+          h="auto"
+          objectFit="cover"
+          borderRadius="md"
+          boxShadow="md"
+          my={6}
+        />
+      );
     },
-  });
+    table: Table,
+    thead: Thead,
+    tbody: Tbody,
+    tr: Tr,
+    th: Th,
+    td: Td,
+    code: Code,
+    Accordion,
+    AccordionItem,
+    AccordionButton,
+    AccordionPanel,
+    AccordionIcon,
+    MCQ,
+  };
 
   return (
-    <ChakraProvider theme={theme}>
-      <AuthProvider>
-        <LanguageProvider>
-          <Layout>
-            <Box maxW="5xl" mx="auto" px={4} py={10}>
+    <AuthProvider>
+      <LanguageProvider>
+        <Layout>
+          <Box maxW="5xl" mx="auto" px={4} py={10}>
               {/* Post Header */}
               <VStack spacing={2} mb={10} align="start">
                 <Text as="h1" fontSize="4xl" fontWeight="bold">
@@ -97,13 +103,12 @@ export default function PostPage({ post }: PostPageProps) {
                   strong: { fontWeight: "semibold" },
                 }}
               >
-                <MDXRemote {...mdxSource} components={components} />
+                <MDXRemote {...mdxSource} components={mdxComponents} />
               </Box>
-            </Box>
-          </Layout>
-        </LanguageProvider>
-      </AuthProvider>
-    </ChakraProvider>
+          </Box>
+        </Layout>
+      </LanguageProvider>
+    </AuthProvider>
   );
 }
 

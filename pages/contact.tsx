@@ -1,100 +1,173 @@
-import { useState } from 'react'
-import Layout from '../components/Layout'
-import { supabase } from '../lib/supabaseClient'
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { GetStaticProps } from 'next';
+import { useState } from "react";
+import Layout from "../components/Layout";
+import { supabase } from "../lib/supabaseClient";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { GetStaticProps } from "next";
+import {
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Input,
+  Textarea,
+  Heading,
+  Text,
+  VStack,
+  HStack,
+  useToast,
+  Icon,
+  Alert,
+  AlertIcon,
+} from "@chakra-ui/react";
+import {
+  UserIcon,
+  EnvelopeIcon,
+  ChatBubbleLeftEllipsisIcon,
+} from "@heroicons/react/24/outline";
 
 export default function Contact() {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [message, setMessage] = useState('')
-  const [status, setStatus] = useState<string | null>(null)
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle"
+  );
+
+  const toast = useToast();
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setStatus('sending')
+    e.preventDefault();
+    setStatus("sending");
     try {
-      const { error } = await supabase.from('contacts').insert([{ name, email, message }])
-      if (error) {
-        setStatus('Error: ' + error.message)
-      } else {
-        setStatus('Message sent successfully!')
-        setName('')
-        setEmail('')
-        setMessage('')
-      }
+      const { error } = await supabase
+        .from("contacts")
+        .insert([{ name, email, message }]);
+      if (error) throw error;
+      setStatus("sent");
+      setName("");
+      setEmail("");
+      setMessage("");
+
+      toast({
+        title: "Message sent!",
+        description: "I’ll get back to you soon.",
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
     } catch (err) {
-      setStatus('Something went wrong. Please try again.')
+      setStatus("error");
+      toast({
+        title: "Error sending message.",
+        description: "Please try again later.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
     }
   }
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto p-6">
-        <div className="bg-white dark:bg-gray-800 shadow-lg rounded-2xl p-8 transition-colors duration-300">
-          <h2 className="text-3xl font-bold mb-2 text-slate-900 dark:text-slate-100">
+      <Box maxW="3xl" mx="auto" px={6} py={16}>
+        <Box
+          bg="white"
+          shadow="2xl"
+          rounded="2xl"
+          borderWidth="1px"
+          borderColor="gray.200"
+          _dark={{ bg: "gray.900", borderColor: "gray.700" }}
+          p={10}
+        >
+          <Heading as="h2" size="2xl" mb={3}>
             Contact Me
-          </h2>
-          <p className="mb-6 text-slate-600 dark:text-slate-300">
-            Have a question or suggestion? Fill out the form below and I’ll get back to you promptly.
-          </p>
+          </Heading>
+          <Text mb={10} fontSize="lg" color="gray.600" _dark={{ color: "gray.300" }}>
+            Got a question, idea, or feedback? Drop me a message and I’ll get back to
+            you soon.
+          </Text>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your Name"
-              required
-              className="border border-gray-300 dark:border-gray-700 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition"
-            />
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Your Email"
-              required
-              className="border border-gray-300 dark:border-gray-700 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition"
-            />
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Your Message"
-              rows={6}
-              required
-              className="border border-gray-300 dark:border-gray-700 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition resize-none"
-            />
+          <form onSubmit={handleSubmit}>
+            <VStack spacing={6} align="stretch">
+              {/* Name */}
+              <FormControl isRequired>
+                <FormLabel>Name</FormLabel>
+                <HStack>
+                  <Icon as={UserIcon} w={5} h={5} color="gray.400" />
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your Name"
+                  />
+                </HStack>
+              </FormControl>
 
-            <div className="flex items-center gap-4 mt-2">
-              <button
+              {/* Email */}
+              <FormControl isRequired>
+                <FormLabel>Email</FormLabel>
+                <HStack>
+                  <Icon as={EnvelopeIcon} w={5} h={5} color="gray.400" />
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Your Email"
+                  />
+                </HStack>
+              </FormControl>
+
+              {/* Message */}
+              <FormControl isRequired>
+                <FormLabel>Message</FormLabel>
+                <HStack align="start">
+                  <Icon as={ChatBubbleLeftEllipsisIcon} w={5} h={5} color="gray.400" mt={2} />
+                  <Textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Your Message"
+                    rows={6}
+                    resize="none"
+                  />
+                </HStack>
+              </FormControl>
+
+              {/* Submit */}
+              <Button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-semibold rounded-lg py-3 px-6 transition-colors duration-300"
+                isLoading={status === "sending"}
+                loadingText="Sending"
+                colorScheme="blue"
+                size="lg"
+                alignSelf="flex-start"
               >
                 Send Message
-              </button>
-              {status && (
-                <span
-                  className={`text-sm font-medium ${
-                    status.includes('Error')
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-green-600 dark:text-green-400'
-                  }`}
-                >
-                  {status}
-                </span>
+              </Button>
+
+              {/* Inline status fallback if toast fails */}
+              {status === "sent" && (
+                <Alert status="success" rounded="md">
+                  <AlertIcon />
+                  Message sent successfully!
+                </Alert>
               )}
-            </div>
+              {status === "error" && (
+                <Alert status="error" rounded="md">
+                  <AlertIcon />
+                  Something went wrong. Try again.
+                </Alert>
+              )}
+            </VStack>
           </form>
-        </div>
-      </div>
+        </Box>
+      </Box>
     </Layout>
-  )
+  );
 }
 
 export const getStaticProps: GetStaticProps = async ({ locale }) => {
   return {
     props: {
-      ...(await serverSideTranslations(locale || 'en', ['nav', 'common'])),
+      ...(await serverSideTranslations(locale || "en", ["nav", "common"])),
     },
     revalidate: 60,
   };

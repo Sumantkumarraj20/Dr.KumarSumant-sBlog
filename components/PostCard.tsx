@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/router";
+import NextLink from "next/link";
 import {
   Box,
   Image,
@@ -12,6 +11,7 @@ import {
   WrapItem,
   Flex,
   useColorModeValue,
+  Link as ChakraLink,
 } from "@chakra-ui/react";
 
 export type PostCardProps = {
@@ -25,6 +25,8 @@ export type PostCardProps = {
     description?: string;
     thumbnail?: string;
   };
+  // optional deterministic locale to render links with (avoid client-only router differences)
+  locale?: string;
 };
 
 const getPostHref = (
@@ -32,8 +34,8 @@ const getPostHref = (
   locale?: string
 ) => `/${locale || meta.lang}/${meta.category}/${meta.slug}`;
 
-export default function PostCard({ meta }: PostCardProps) {
-  const { locale } = useRouter();
+export default function PostCard({ meta, locale }: PostCardProps) {
+  // use provided locale (from page's SSG props) or fall back to the post's language
   const href = getPostHref(meta, locale || meta.lang);
 
   const bgCard = useColorModeValue("white", "gray.800");
@@ -95,22 +97,12 @@ export default function PostCard({ meta }: PostCardProps) {
         ) : null}
 
         {/* Title */}
-        <Heading
-          as="h3"
-          size="md"
-          mb={1}
-          color={textColor}
-          lineHeight="short"
-        >
-          <Link href={href} passHref>
-            <Box
-              as="a"
-              _hover={{ color: "blue.500" }}
-              _dark={{ _hover: { color: "blue.400" } }}
-            >
+        <Heading as="h3" size="md" mb={1} color={textColor} lineHeight="short">
+          <NextLink href={href} legacyBehavior passHref>
+            <ChakraLink _hover={{ color: "blue.500" }} _dark={{ _hover: { color: "blue.400" } }}>
               {meta.title}
-            </Box>
-          </Link>
+            </ChakraLink>
+          </NextLink>
         </Heading>
 
         {/* Date */}
@@ -127,18 +119,11 @@ export default function PostCard({ meta }: PostCardProps) {
 
         {/* Read More */}
         <Flex mt="auto" pt={2}>
-          <Link href={href} passHref>
-            <Text
-              as="a"
-              fontSize="sm"
-              fontWeight="medium"
-              color="blue.500"
-              _dark={{ color: "blue.400" }}
-              _hover={{ textDecoration: "underline" }}
-            >
+          <NextLink href={href} legacyBehavior passHref>
+            <ChakraLink fontSize="sm" fontWeight="medium" color="blue.500" _dark={{ color: "blue.400" }} _hover={{ textDecoration: "underline" }}>
               Read More →
-            </Text>
-          </Link>
+            </ChakraLink>
+          </NextLink>
         </Flex>
       </Box>
     </Box>
