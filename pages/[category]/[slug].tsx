@@ -4,20 +4,23 @@ import { GetStaticPaths, GetStaticProps } from "next";
 import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { MDXRemote, MDXRemoteSerializeResult } from "next-mdx-remote";
 import Layout from "../../components/Layout";
-import { Box, Text, VStack, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Table, Thead, Tbody, Tr, Th, Td, Code, Image } from "@chakra-ui/react";
+import { Box, Text, VStack, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon, Table, Thead, Tbody, Tr, Th, Td, Code, Image, Grid, Heading } from "@chakra-ui/react";
 import dynamic from "next/dynamic";
 import MCQ from "../../components/MCQ";
 import { AuthProvider } from "../../context/authContext";
 import { LanguageProvider } from "../../context/languageContext";
-import { getPostBySlug, PostMeta } from "@/lib/posts";
+import { getPostBySlug, PostMeta, listPosts } from "@/lib/posts";
+import PostCard from "../../components/PostCard";
 
 // Note: MDX components mapping is created inside PostPage so we can use Chakra's theming
 
 interface PostPageProps {
   post: { mdxSource: MDXRemoteSerializeResult; meta: PostMeta } | null;
+  relatedPosts?: PostMeta[];
+  locale?: string;
 }
 
-export default function PostPage({ post }: PostPageProps) {
+export default function PostPage({ post, relatedPosts = [], locale }: PostPageProps) {
   if (!post)
     return (
       <Layout>
@@ -105,6 +108,19 @@ export default function PostPage({ post }: PostPageProps) {
               >
                 <MDXRemote {...mdxSource} components={mdxComponents} />
               </Box>
+
+              {/* Related posts */}
+              {relatedPosts && relatedPosts.length > 0 && (
+                <Box mt={12}>
+                  <Heading size="md" mb={4}>Related posts</Heading>
+                  <Grid templateColumns={{ base: "1fr", md: "repeat(3,1fr)" }} gap={6}>
+                    {relatedPosts.map((p) => (
+                      // PostCard expects meta and optional locale
+                      <PostCard key={`${p.lang}-${p.category}-${p.slug}`} meta={p as any} locale={locale} />
+                    ))}
+                  </Grid>
+                </Box>
+              )}
           </Box>
         </Layout>
       </LanguageProvider>
@@ -125,9 +141,33 @@ export const getStaticProps: GetStaticProps = async ({ params, locale }) => {
 
   const post = await getPostBySlug(slug, lang, category);
 
+  // compute related posts: same category first, excluding the current slug
+  let related: PostMeta[] = [];
+  try {
+    const all = listPosts(lang, category);
+    related = all.filter((p) => p.slug !== slug).slice(0, 6);
+    // prefer posts sharing tags if available
+    if (post?.meta?.tags?.length) {
+      const tagSet = new Set(post.meta.tags);
+      const byTag = all
+        .filter((p) => p.slug !== slug)
+        .map((p) => ({ p, common: (p.tags || []).filter((t) => tagSet.has(t)).length }))
+        .filter((x) => x.common > 0)
+        .sort((a, b) => b.common - a.common)
+        .map((x) => x.p);
+      related = Array.from(new Set([...byTag, ...related])).slice(0, 3);
+    } else {
+      related = related.slice(0, 3);
+    }
+  } catch (e) {
+    related = [];
+  }
+
   return {
     props: {
       post,
+      relatedPosts: related,
+      locale: lang,
       ...(await serverSideTranslations(lang, ["common", "nav"])),
     },
   };

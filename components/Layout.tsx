@@ -34,7 +34,7 @@ import ErrorBoundary from "./ErrorBoundary";
 import { useAuth } from "../context/authContext";
 import {
   HomeIcon,
-  ChatBubbleOvalLeftEllipsisIcon,
+  AcademicCapIcon,
   UserCircleIcon,
   EnvelopeIcon,
   GlobeAltIcon,
@@ -75,7 +75,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { href: "/", label: t("home"), icon: HomeIcon },
     { href: "/about", label: t("about"), icon: UserCircleIcon },
     { href: "/blog", label: t("blog"), icon: PencilSquareIcon },
-    { href: "/chat", label: t("chat"), icon: ChatBubbleOvalLeftEllipsisIcon },
+    { href: "/learn", label: t("learn"), icon: AcademicCapIcon },
     { href: "/contact", label: t("contact"), icon: EnvelopeIcon },
   ];
 

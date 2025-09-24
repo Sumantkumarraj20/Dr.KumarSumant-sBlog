@@ -15,7 +15,7 @@ import {
   Icon,
   useColorModeValue,
 } from "@chakra-ui/react";
-import { SparklesIcon, BookOpenIcon, ChatBubbleLeftEllipsisIcon } from "@heroicons/react/24/outline";
+import { SparklesIcon, BookOpenIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
 
 type Post = {
   slug: string;
@@ -43,9 +43,9 @@ export default function Home({ posts, locale: pageLocale }: { posts: Post[]; loc
       icon: SparklesIcon,
     },
     {
-      title: "Ask a question",
-      desc: "A chat assistant for clarifications and personalized guidance.",
-      icon: ChatBubbleLeftEllipsisIcon,
+      title: "Learning Platform",
+      desc: "A medical elearnig platform with SRS-based revision and spaced repetition. We are evidence base carefully learning scicence to optimise learning efficiency.",
+      icon: AcademicCapIcon,
     },
   ];
 
@@ -63,7 +63,7 @@ export default function Home({ posts, locale: pageLocale }: { posts: Post[]; loc
           </Text>
           <HStack spacing={3} pt={2}>
             <Button colorScheme="blue" size="md" onClick={() => window.location.assign('/blog')}>Read latest articles</Button>
-            <Button variant="outline" size="md" onClick={() => window.location.assign('/chat')}>Ask a question</Button>
+            <Button variant="outline" size="md" onClick={() => window.location.assign('/learn')}>Ask a question</Button>
           </HStack>
         </Stack>
 
