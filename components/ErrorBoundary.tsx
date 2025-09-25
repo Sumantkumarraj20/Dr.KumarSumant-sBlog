@@ -29,7 +29,13 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <Box p={6} maxW="3xl" mx="auto">
+        <Box  bg="white"
+          shadow="2xl"
+          rounded="2xl"
+          borderWidth="1px"
+          borderColor="gray.200"
+          _dark={{ bg: "gray.900", borderColor: "gray.700" }}
+          p={10}>
           <VStack spacing={4} align="stretch" bg="red.50" p={6} rounded="md" boxShadow="md">
             <Text fontWeight="bold">Something went wrong</Text>
             <Text fontSize="sm">An unexpected error occurred while rendering this page.</Text>

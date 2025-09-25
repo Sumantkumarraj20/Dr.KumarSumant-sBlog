@@ -1,74 +1,92 @@
 // pages/learn.tsx
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import Layout from "../components/Layout";
+import { useState, useEffect } from "react";
 import { Flex, Spinner, useColorModeValue } from "@chakra-ui/react";
-import { useAuth } from "../context/authContext";
 
-// Components
-import Dashboard from "../components/learning/Dashboard";
-import LessonPage from "../components/learning/LessonPage";
-import SRSReview from "../components/learning/SRSReview";
+import Dashboard from "@/components/learning/Dashboard";
+import ModulePage from "@/components/learning/ModulePage";
+import UnitPage from "@/components/learning/UnitPage";
+import LessonPage from "@/components/learning/LessonPage";
+import LessonContent from "@/components/learning/LessonContent";
+
+import { fetchCourses } from "@/lib/learn";
 
 const LearnPage = () => {
-  const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [selectedModule, setSelectedModule] = useState<any>(null);
+  const [selectedUnit, setSelectedUnit] = useState<any>(null);
+  const [selectedLesson, setSelectedLesson] = useState<any>(null);
+
   const bgColor = useColorModeValue("gray.50", "gray.800");
 
-  const [currentView, setCurrentView] = useState<"dashboard" | "lesson" | "srs">("dashboard");
-  const [selectedLesson, setSelectedLesson] = useState<any | null>(null);
-
-  // Protect page: redirect to /auth if not logged in
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace("/auth");
-    }
-  }, [authLoading, user, router]);
+    const loadCourses = async () => {
+      setLoading(true);
+      const data = await fetchCourses();
+      setCourses(data);
+      setLoading(false);
+    };
+    loadCourses();
+  }, []);
 
-  // Handle SPA-style navigation using query param ?view=
-  useEffect(() => {
-    const view = router.query.view as string;
-    if (view === "lesson") setCurrentView("lesson");
-    else if (view === "srs") setCurrentView("srs");
-    else setCurrentView("dashboard");
-  }, [router.query.view]);
-
-  const navigate = (view: "dashboard" | "lesson" | "srs", lesson?: any) => {
-    if (lesson) setSelectedLesson(lesson);
-    router.push({ pathname: "/learn", query: { view } }, undefined, { shallow: true });
-    setCurrentView(view);
-  };
-
-  if (authLoading || !user) {
+  if (loading) {
     return (
-      <Flex h="80vh" align="center" justify="center">
-        <Spinner size="xl" />
+      <Flex h="80vh" align="center" justify="center" bg={bgColor}>
+        <Spinner size="xl" thickness="5px" color="blue.500" />
       </Flex>
     );
   }
 
+  // Navigation flow
+  if (!selectedCourse) {
+    return <Dashboard courses={courses} onSelectCourse={setSelectedCourse} />;
+  }
+
+  if (selectedCourse && !selectedModule) {
+    return (
+      <ModulePage
+        course={selectedCourse}
+        onBack={() => setSelectedCourse(null)}
+        onSelectModule={setSelectedModule}
+      />
+    );
+  }
+
+  if (selectedModule && !selectedUnit) {
+    return (
+      <UnitPage
+        module={selectedModule}
+        onBack={() => setSelectedModule(null)}
+        onSelectUnit={setSelectedUnit}
+      />
+    );
+  }
+
+  if (selectedUnit && !selectedLesson) {
+    return (
+      <LessonPage
+        unit={selectedUnit}
+        onBack={() => setSelectedModule(null)}
+        onSelectLesson={setSelectedLesson}
+      />
+    );
+  }
+
+  // Lesson Content view with navigation + quiz
   return (
-    <Layout>
-      <Flex
-        direction="column"
-        bg={bgColor}
-        flex="1"
-        minH="calc(100vh - 64px - 64px)" 
-        w="100%"
-        p={6}
-        overflow="hidden"
-      >
-        {currentView === "dashboard" && (
-          <Dashboard onSelectLesson={(lesson: any) => navigate("lesson", lesson)} />
-        )}
-
-        {currentView === "lesson" && selectedLesson && (
-          <LessonPage lesson={selectedLesson} onBack={() => navigate("dashboard")} />
-        )}
-
-        {currentView === "srs" && <SRSReview userId={user.id} language="en" />}
-      </Flex>
-    </Layout>
+    <LessonContent
+      unit={selectedUnit}
+      lesson={selectedLesson}
+      lessonsInUnit={selectedUnit?.lessons || []} // ordered list of lessons
+      onBackToUnit={() => setSelectedLesson(null)}
+      onNavigateLesson={(lesson) => setSelectedLesson(lesson)}
+      onGoToQuiz={(lesson) => {
+        // TODO: implement quiz page navigation
+        console.log("Go to quiz for lesson:", lesson.id);
+      }}
+    />
   );
 };
 

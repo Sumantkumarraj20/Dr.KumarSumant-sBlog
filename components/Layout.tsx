@@ -320,10 +320,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <MotionBox
           key={router.asPath}
           flex="1"
-          maxW="6xl"
-          mx="auto"
-          px={{ base: 4, sm: 6, lg: 8 }}
-          py={8}
+          pt ={2}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
