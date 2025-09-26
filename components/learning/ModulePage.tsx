@@ -40,10 +40,11 @@ export default function ModulePage({ course, onBack, onSelectModule }: Props) {
       </HStack>
 
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
-        {modules.map((mod) => (
+        {modules.map((module) => (
           <Box
-            key={mod.id}
+            key={module.id}
             bg="white"
+            _dark={{ bg: "gray.700" }}
             rounded="2xl"
             p={6}
             shadow="sm"
@@ -56,16 +57,16 @@ export default function ModulePage({ course, onBack, onSelectModule }: Props) {
           >
             <VStack align="start" spacing={4}>
               <Text fontSize="xl" fontWeight="bold">
-                {mod.title}
+                {module.title}
               </Text>
-              {mod.description && (
+              {module.description && (
                 <Text fontSize="sm" color="gray.600">
-                  {mod.description}
+                  {module.description}
                 </Text>
               )}
               <Button
                 colorScheme="blue"
-                onClick={() => onSelectModule(mod)}
+                onClick={() => onSelectModule(module)}
                 w="full"
               >
                 Open
