@@ -28,10 +28,10 @@ interface QuizModalProps {
   onClose: () => void;
   quiz?: Quiz | null;
   lessonId: string;
-  refreshQuizzes: (updatedQuiz: Quiz) => void;
+  refresh: (updatedQuiz: Quiz) => void;
 }
 
-export default function QuizModal({ isOpen, onClose, quiz, lessonId, refreshQuizzes }: QuizModalProps) {
+export default function QuizModal({ isOpen, onClose, quiz, lessonId,refresh }: QuizModalProps) {
   const toast = useToast();
   const [passingScore, setPassingScore] = useState(70);
   const [loading, setLoading] = useState(false);
@@ -115,7 +115,7 @@ export default function QuizModal({ isOpen, onClose, quiz, lessonId, refreshQuiz
       } else {
         updatedQuiz = (await createQuiz({ lesson_id: lessonId, passing_score: passingScore })).data!;
       }
-      refreshQuizzes(updatedQuiz);
+      refresh(updatedQuiz);
       toast({ title: quiz ? "Quiz updated" : "Quiz created", status: "success" });
       onClose();
     } catch (err: any) {

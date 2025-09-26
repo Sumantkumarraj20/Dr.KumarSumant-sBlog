@@ -214,7 +214,7 @@ export default function LessonModal({
           onClose={() => setQuizModalOpen(false)}
           lessonId={lesson?.id || unitId}
           quiz={selectedQuiz}
-          refreshQuizzes={(updatedQuiz: Quiz) => {
+          refresh={(updatedQuiz: Quiz) => {
             setQuizzes((prev) => {
               const index = prev.findIndex((q) => q.id === updatedQuiz.id);
               if (index >= 0) prev[index] = updatedQuiz;

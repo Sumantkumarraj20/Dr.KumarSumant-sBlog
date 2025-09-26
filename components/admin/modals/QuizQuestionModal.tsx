@@ -4,7 +4,7 @@ import {
   ModalBody, ModalFooter, Button, FormControl, FormLabel, Input, Textarea, useToast
 } from "@chakra-ui/react";
 import { createQuizQuestion, updateQuizQuestion } from "@/lib/adminApi";
-import { QuizQuestion } from "@/lib/adminApi";
+import { QuizQuestion, Quiz } from "@/lib/adminApi";
 
 interface QuizQuestionModalProps {
   isOpen: boolean;
