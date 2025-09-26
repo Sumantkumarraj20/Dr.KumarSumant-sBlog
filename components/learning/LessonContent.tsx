@@ -21,21 +21,32 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { LinkIcon } from "@heroicons/react/24/outline";
-import { Lesson } from "@/lib/learn";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import LessonQuiz from "./LessonQuiz";
 
-interface LessonContentProps {
-  unit: any;
+export interface Lesson {
+  id: string;
+  title: string;
+  content: any;
+}
+
+export interface Unit {
+  id: string;
+  title: string;
+  lessons: Lesson[];
+}
+
+export interface LessonContentProps {
+  unit: Unit;
   lesson: Lesson;
   lessonsInUnit: Lesson[];
   onBackToUnit: () => void;
   onNavigateLesson: (lesson: Lesson) => void;
-  onGoToQuiz: (lesson: Lesson) => void;
+  onGoToNext: (completedLesson?: Lesson) => void;
+  userId: string;
 }
 
-/**
- * Normalize lesson content into array of blocks
- */
+// normalize raw lesson content to array of blocks
 function normalizeLessonContent(rawContent: any) {
   if (!rawContent) return [];
   if (Array.isArray(rawContent)) return rawContent;
@@ -66,26 +77,14 @@ function normalizeLessonContent(rawContent: any) {
   return [];
 }
 
-/**
- * Render individual content blocks
- */
+// render individual lesson content block
 function RenderBlock({ block }: { block: any }) {
   const textColor = useColorModeValue("gray.800", "gray.100");
   switch (block.type) {
     case "text":
-      return (
-        <Text fontSize="md" mb={3} color={textColor} _dark={{ color: "gray.300" }}>
-          {block.content}
-        </Text>
-      );
-
+      return <Text fontSize="md" mb={3} color={textColor}>{block.content}</Text>;
     case "heading":
-      return (
-        <Heading size={block.level || "md"} mt={6} mb={3}>
-          {block.content}
-        </Heading>
-      );
-
+      return <Heading size={block.level || "md"} mt={6} mb={3}>{block.content}</Heading>;
     case "list":
       return (
         <List spacing={2} styleType={block.ordered ? "decimal" : "disc"} pl={6} mb={3}>
@@ -94,25 +93,14 @@ function RenderBlock({ block }: { block: any }) {
           ))}
         </List>
       );
-
     case "image":
-      return (
-        <Image
-          src={block.image}
-          alt={block.alt || "Lesson image"}
-          borderRadius="md"
-          shadow="sm"
-          my={4}
-        />
-      );
-
+      return <Image src={block.image} alt={block.alt || "Lesson image"} borderRadius="md" shadow="sm" my={4} />;
     case "video":
       return (
         <AspectRatio ratio={16 / 9} my={4}>
           <iframe src={block.url} title="Lesson Video" allowFullScreen />
         </AspectRatio>
       );
-
     case "table":
       return (
         <Box overflowX="auto" my={4}>
@@ -136,7 +124,6 @@ function RenderBlock({ block }: { block: any }) {
           </Table>
         </Box>
       );
-
     case "citation":
       return (
         <Text fontSize="sm" color="blue.500" my={2}>
@@ -145,33 +132,45 @@ function RenderBlock({ block }: { block: any }) {
           </Link>
         </Text>
       );
-
-    case "quiz":
-      return (
-        <Button colorScheme="blue" my={3}>
-          Take Quiz {block.quizId}
-        </Button>
-      );
-
     default:
-      return (
-        <Text color="red.500" mb={3}>
-          Unsupported content block
-        </Text>
-      );
+      return <Text color="red.500" mb={3}>Unsupported content block</Text>;
   }
 }
 
 export default function LessonContent({
+  unit,
   lesson,
   lessonsInUnit,
   onBackToUnit,
   onNavigateLesson,
-  onGoToQuiz,
+  onGoToNext,
+  userId,
 }: LessonContentProps) {
   const bgCard = useColorModeValue("white", "gray.700");
+  const [showQuiz, setShowQuiz] = useState(false);
 
   const content = useMemo(() => normalizeLessonContent(lesson?.content), [lesson]);
+
+  if (showQuiz) {
+    return (
+      <LessonQuiz
+        lessonId={lesson.id}
+        userId={userId}
+        onCompleteQuiz={() => {
+          // automatically go to next lesson/unit
+          const currentIdx = lessonsInUnit.findIndex((l) => l.id === lesson.id);
+          const nextLesson = lessonsInUnit[currentIdx + 1];
+
+          if (nextLesson) {
+            onNavigateLesson(nextLesson);
+          } else {
+            // completed all lessons in unit, trigger parent handler
+            onGoToNext(lesson);
+          }
+        }}
+      />
+    );
+  }
 
   if (!lesson || content.length === 0) {
     return <Text p={6}>Content coming soon…</Text>;
@@ -179,8 +178,7 @@ export default function LessonContent({
 
   const currentIndex = lessonsInUnit.findIndex((l) => l.id === lesson.id);
   const prevLesson = currentIndex > 0 ? lessonsInUnit[currentIndex - 1] : null;
-  const nextLesson =
-    currentIndex < lessonsInUnit.length - 1 ? lessonsInUnit[currentIndex + 1] : null;
+  const nextLesson = currentIndex < lessonsInUnit.length - 1 ? lessonsInUnit[currentIndex + 1] : null;
 
   return (
     <VStack
@@ -193,13 +191,9 @@ export default function LessonContent({
       maxW="100%"
       mx="auto"
     >
-      <Heading size="xl" color="blue.600">
-        {lesson.title}
-      </Heading>
-
+      <Heading size="xl" color="blue.600">{lesson.title}</Heading>
       <Divider />
 
-      {/* Lesson Blocks */}
       {content.map((block, idx) => (
         <Box
           key={idx}
@@ -214,11 +208,8 @@ export default function LessonContent({
 
       <Divider />
 
-      {/* Navigation Controls */}
       <HStack justify="space-between" flexWrap="wrap" spacing={4}>
-        <Button onClick={onBackToUnit} variant="outline">
-          Back to Unit
-        </Button>
+        <Button onClick={onBackToUnit} variant="outline">Back to Unit</Button>
 
         {prevLesson && (
           <Button onClick={() => onNavigateLesson(prevLesson)} variant="ghost">
@@ -226,7 +217,7 @@ export default function LessonContent({
           </Button>
         )}
 
-        <Button colorScheme="green" onClick={() => onGoToQuiz(lesson)}>
+        <Button colorScheme="green" onClick={() => setShowQuiz(true)}>
           Go to Quiz
         </Button>
 

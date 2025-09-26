@@ -1,8 +1,8 @@
 // next-i18next.config.js
 module.exports = {
   i18n: {
-    defaultLocale: 'hi',
-    locales: ['hi', 'en', 'ru'], 
+    defaultLocale: 'en',
+    locales: ['en', 'hi', 'ru'], 
     // Next.js requires a literal boolean here; set to false to avoid invalid config warning.
     localeDetection: false,
   },

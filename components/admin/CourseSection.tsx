@@ -97,17 +97,36 @@ export default function CoursesSection() {
   const [expandedLesson, setExpandedLesson] = useState<string | null>(null);
 
   const loadCourses = async () => {
-    setLoading(true);
-    try {
-      const res = await fetchCourses(); // { data: Course[]; error: any }
-      if (res.error) throw res.error;
-      setCourses(res.data || []);
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    const { data, error } = await fetchCourses();
+    if (error) throw error;
+
+    // Defensive fallback: empty arrays for missing relations
+    const structured = (data || []).map((course) => ({
+      ...course,
+      modules: course.modules?.map((m) => ({
+        ...m,
+        units: m.units?.map((u) => ({
+          ...u,
+          lessons: u.lessons?.map((l) => ({
+            ...l,
+            quizzes: l.quizzes?.map((q) => ({
+              ...q,
+              questions: q.questions || [],
+            })) || [],
+          })) || [],
+        })) || [],
+      })) || [],
+    }));
+
+    setCourses(structured);
+  } catch (err: any) {
+    console.error("Error loading courses:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     loadCourses();
