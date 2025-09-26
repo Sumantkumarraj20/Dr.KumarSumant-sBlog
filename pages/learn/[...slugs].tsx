@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { Flex, Spinner, Box, useColorModeValue } from "@chakra-ui/react";
+import { Flex, Spinner, Box, useColorModeValue, VStack, Text } from "@chakra-ui/react";
 import Layout from "@/components/Layout";
 import LearningSidebar from "@/components/learning/LearningSidebar";
 import Dashboard from "@/components/learning/Dashboard";
@@ -12,6 +12,7 @@ import LessonPage from "@/components/learning/LessonPage";
 import LessonContent from "@/components/learning/LessonContent";
 import { fetchCourses } from "@/lib/learn";
 import { useAuth } from "@/context/authContext";
+import { recordProgress } from "@/lib/userProgress";
 
 const LearnPage = () => {
   const router = useRouter();
@@ -21,7 +22,6 @@ const LearnPage = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load courses from backend
   useEffect(() => {
     const loadCourses = async () => {
       setLoading(true);
@@ -62,7 +62,7 @@ const LearnPage = () => {
 
   const [courseId, moduleId, unitId, lessonId] = slugs || [];
 
-  // --- Safe find access ---
+  // --- Safe finds ---
   const selectedCourse = courses.find((c) => c.id === courseId) || null;
   const selectedModule = selectedCourse?.modules?.find((m) => m.id === moduleId) || null;
   const selectedUnit = selectedModule?.units?.find((u) => u.id === unitId) || null;
@@ -78,9 +78,14 @@ const LearnPage = () => {
       lesson?.id,
     ].filter(Boolean).join("/");
     router.push(path);
+
+    // Track progress if lesson viewed
+    if (lesson && user?.id) {
+      recordProgress(user.id, course?.id, module?.id, unit?.id, lesson?.id);
+    }
   };
 
-  // --- Conditional rendering based on selection ---
+  // --- Conditional rendering ---
   let mainContent: React.ReactNode = null;
 
   if (!selectedCourse) {
@@ -121,7 +126,6 @@ const LearnPage = () => {
           navigateTo(selectedCourse, selectedModule, selectedUnit, lesson)
         }
         onGoToNext={(completedLesson?: any) => {
-          // Next lesson
           const lessonIndex = selectedUnit.lessons.findIndex(
             (l: any) => l.id === (completedLesson?.id || selectedLesson.id)
           );
@@ -129,13 +133,11 @@ const LearnPage = () => {
           if (nextLesson)
             return navigateTo(selectedCourse, selectedModule, selectedUnit, nextLesson);
 
-          // Next unit
           const unitIndex = selectedModule.units.findIndex((u: any) => u.id === selectedUnit.id);
           const nextUnit = selectedModule.units[unitIndex + 1];
           if (nextUnit)
             return navigateTo(selectedCourse, selectedModule, nextUnit, nextUnit.lessons[0]);
 
-          // Next module
           const moduleIndex = selectedCourse.modules.findIndex(
             (m: any) => m.id === selectedModule.id
           );
@@ -145,7 +147,6 @@ const LearnPage = () => {
             return navigateTo(selectedCourse, nextModule, firstUnit, firstUnit.lessons[0]);
           }
 
-          // Course complete
           alert("🎉 Congratulations! You have completed this course.");
           navigateTo();
         }}

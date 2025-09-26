@@ -1,8 +1,19 @@
 // components/learning/LessonPage.tsx
 import { fetchLessons } from "@/lib/learn";
 import { useEffect, useState } from "react";
-import { SimpleGrid, Box, Text, VStack, Button, Flex, HStack } from "@chakra-ui/react";
-import { ArrowTopRightOnSquareIcon, ChevronDoubleLeftIcon } from "@heroicons/react/24/outline";
+import {
+  SimpleGrid,
+  Box,
+  Text,
+  VStack,
+  Button,
+  Flex,
+  HStack,
+} from "@chakra-ui/react";
+import {
+  ArrowTopRightOnSquareIcon,
+  ChevronDoubleLeftIcon,
+} from "@heroicons/react/24/outline";
 
 interface Props {
   unit: any;
@@ -23,7 +34,9 @@ export default function LessonPage({ unit, onBack, onSelectLesson }: Props) {
         <Button onClick={onBack}>
           <ChevronDoubleLeftIcon className="h-6 w-6" />
         </Button>
-        <Text fontSize="4xl" fontWeight="bold">{unit.title}</Text>
+        <Text fontSize="4xl" fontWeight="bold">
+          {unit.title}
+        </Text>
       </HStack>
 
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
@@ -35,13 +48,26 @@ export default function LessonPage({ unit, onBack, onSelectLesson }: Props) {
             p={6}
             shadow="sm"
             cursor="pointer"
-            _hover={{ shadow: "xl", transform: "translateY(-5px)", bg: "blue.50" }}
+            _hover={{
+              shadow: "xl",
+              transform: "translateY(-5px)",
+              bg: "blue.50",
+            }}
           >
             <VStack align="start" spacing={4}>
-              <Text fontSize="xl" fontWeight="bold">{lesson.title}</Text>
-              {lesson.description && <Text fontSize="sm" color="gray.600">{lesson.description}</Text>}
-              <Button colorScheme="blue" onClick={() => onSelectLesson(lesson)} w="full">
-                <ArrowTopRightOnSquareIcon className="h-5 w-6 mr-1" />
+              <Text fontSize="xl" fontWeight="bold">
+                {lesson.title}
+              </Text>
+              {lesson.description && (
+                <Text fontSize="sm" color="gray.600">
+                  {lesson.description}
+                </Text>
+              )}
+              <Button
+                colorScheme="blue"
+                onClick={() => onSelectLesson(lesson)}
+                w="full"
+              >
                 Start Lesson
               </Button>
             </VStack>

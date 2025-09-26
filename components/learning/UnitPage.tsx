@@ -1,9 +1,20 @@
 // components/learning/UnitPage.tsx
 import { fetchUnits } from "@/lib/learn";
 import { useEffect, useState } from "react";
-import { SimpleGrid, Box, Text, VStack, Button, Flex, HStack } from "@chakra-ui/react";
-import { Squares2X2Icon, ChevronDoubleLeftIcon } from "@heroicons/react/24/outline";
-import {useRouter} from "next/router";
+import {
+  SimpleGrid,
+  Box,
+  Text,
+  VStack,
+  Button,
+  Flex,
+  HStack,
+} from "@chakra-ui/react";
+import {
+  Squares2X2Icon,
+  ChevronDoubleLeftIcon,
+} from "@heroicons/react/24/outline";
+import { useRouter } from "next/router";
 
 interface Props {
   module: any;
@@ -20,9 +31,9 @@ export default function UnitPage({ module, onBack, onSelectUnit }: Props) {
   }, [module.id]);
   const courseId = module.course_id;
   const handleOpenUnit = (unit: any) => {
-  // Navigate to full path with unit ID
-  router.push(`/learn/${courseId}/${module.id}/${unit.id}`);
-};
+    // Navigate to full path with unit ID
+    router.push(`/learn/${courseId}/${module.id}/${unit.id}`);
+  };
 
   return (
     <Flex direction="column" w="100%" h="100%" p={8}>
@@ -30,7 +41,9 @@ export default function UnitPage({ module, onBack, onSelectUnit }: Props) {
         <Button onClick={onBack}>
           <ChevronDoubleLeftIcon className="h-6 w-6" />
         </Button>
-        <Text fontSize="4xl" fontWeight="bold">{module.title}</Text>
+        <Text fontSize="4xl" fontWeight="bold">
+          {module.title}
+        </Text>
       </HStack>
 
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
@@ -42,13 +55,26 @@ export default function UnitPage({ module, onBack, onSelectUnit }: Props) {
             p={6}
             shadow="sm"
             cursor="pointer"
-            _hover={{ shadow: "xl", transform: "translateY(-5px)", bg: "blue.50" }}
+            _hover={{
+              shadow: "xl",
+              transform: "translateY(-5px)",
+              bg: "blue.50",
+            }}
           >
             <VStack align="start" spacing={4}>
-              <Text fontSize="xl" fontWeight="bold">{unit.title}</Text>
-              {unit.description && <Text fontSize="sm" color="gray.600">{unit.description}</Text>}
-              <Button colorScheme="blue" onClick={() => onSelectUnit(unit)} w="full">
-                <Squares2X2Icon className="h-5 w-6 mr-1" />
+              <Text fontSize="xl" fontWeight="bold">
+                {unit.title}
+              </Text>
+              {unit.description && (
+                <Text fontSize="sm" color="gray.600">
+                  {unit.description}
+                </Text>
+              )}
+              <Button
+                colorScheme="blue"
+                onClick={() => onSelectUnit(unit)}
+                w="full"
+              >
                 Open
               </Button>
             </VStack>
