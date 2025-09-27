@@ -33,3 +33,18 @@
 ## Notes
 - Do NOT commit your real keys.
 - The chat uses Supabase Realtime and a public `messages` table. For small user counts this is free, but monitor usage.
+
+
+video file ussage example
+editor.commands.setVideo({
+  src: "https://example.com/video.mp4",
+  controls: true,
+  autoplay: false,
+  loop: true,
+});
+
+Example ussage:
+json to html
+json to markdown
+const html = richTextToHTML(jsonContent);
+const md = richTextToMarkdown(jsonContent, mySchema);
