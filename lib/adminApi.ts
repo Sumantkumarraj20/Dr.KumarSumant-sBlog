@@ -7,6 +7,7 @@ export type Course = {
   id: string;
   title: string;
   description?: string;
+  created_by?: string;
   created_at?: string;
   modules?: Module[];
 };
@@ -46,10 +47,10 @@ export interface QuizQuestion {
   id: string;
   quiz_id: string;
   lesson_id: string;
-  question_text: string;
+  question_text: JSONContent;
   options: string[];
   correct_answer: string[];
-  explanation: { text: string };
+  explanation: JSONContent;
   created_at: string;
 }
 
@@ -389,61 +390,3 @@ export function attachQuizzesToLessons(lessons: Lesson[], quizzes: Quiz[]): Less
   }));
 }
 
-export const fetchElearnData = async (): Promise<{ data: Course[]; error: any }> => {
-  try {
-    const { data, error } = await supabase
-      .from("courses")
-      .select(`
-        id, title, description, created_at,
-        modules (
-          id, title, description, order_index, created_at,
-          units (
-            id, title, description, created_at,
-            lessons (*),
-            quizzes (
-              id, title, description, created_at,
-              quiz_questions (*)
-            )
-          )
-        )
-      `);
-
-    if (error) throw error;
-
-    const courses: Course[] = (data || []).map((course: any) => ({
-      id: course.id,
-      title: course.title,
-      description: course.description,
-      created_at: course.created_at,
-      modules: (course.modules || []).map((mod: any) => ({
-        id: mod.id,
-        course_id: course.id, // ✅ FIX
-        title: mod.title,
-        description: mod.description,
-        order_index: mod.order_index,
-        created_at: mod.created_at,
-        units: (mod.units || []).map((unit: any) => ({
-          id: unit.id,
-          module_id: mod.id, // ✅ FIX
-          title: unit.title,
-          description: unit.description,
-          created_at: unit.created_at,
-          lessons: unit.lessons || [],
-          quizzes: (unit.quizzes || []).map((quiz: any) => ({
-            id: quiz.id,
-            unit_id: unit.id, // ✅ FIX
-            title: quiz.title,
-            description: quiz.description,
-            created_at: quiz.created_at,
-            quiz_questions: quiz.quiz_questions || [],
-          })),
-        })),
-      })),
-    }));
-
-    return { data: courses, error: null };
-  } catch (err) {
-    console.error("Error fetching courses:", err);
-    return { data: [], error: err };
-  }
-};

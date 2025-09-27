@@ -9,10 +9,8 @@ import {
   Flex,
 } from "@chakra-ui/react";
 import {
-  AcademicCapIcon,
   ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
-import Layout from "../Layout";
 
 interface Props {
   courses: any[];
@@ -29,10 +27,6 @@ const Dashboard = ({ courses, onSelectCourse }: Props) => {
       bg="gray.50"
       _dark={{ bg: "gray.900" }}
     >
-      <Text fontSize="4xl" fontWeight="extrabold" mb={6}>
-        Learning Dashboard
-      </Text>
-
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
         {courses.map((course) => (
           <Box

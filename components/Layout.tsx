@@ -1,5 +1,4 @@
 "use client";
-
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -28,6 +27,7 @@ import {
   MenuList,
   MenuItem,
   Avatar,
+  Portal,
 } from "@chakra-ui/react";
 import GlobalLoader, { useRouteLoading } from "./GlobalLoader";
 import ErrorBoundary from "./ErrorBoundary";
@@ -55,7 +55,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const routeLoading = useRouteLoading();
 
-  // Keep all color-mode hooks at top-level so hook order is stable
   const bgHeader = useColorModeValue("whiteAlpha.900", "gray.800");
   const bgLang = useColorModeValue("gray.100", "gray.700");
   const activeColor = useColorModeValue("blue.600", "blue.400");
@@ -86,10 +85,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setSigningOut(true);
     try {
       await supabase.auth.signOut();
-      // authContext listener will update state; navigate to home
       router.push("/");
-    } catch (e) {
-      console.error("Sign out error:", e);
     } finally {
       setSigningOut(false);
     }
@@ -97,20 +93,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <Flex direction="column" minH="100vh" bg={bodyBg} color={textColor}>
-      {/* Global loader overlay (shows progress + ETA) */}
+      {/* Global loader overlay */}
       <GlobalLoader />
-      {/* ===== HEADER ===== */}
-      <Box as="header" position="sticky" top="0" zIndex="40" bg={bgHeader} backdropFilter="blur(8px)" boxShadow="sm">
-        <Flex maxW="6xl" mx="auto" px={{ base: 4, sm: 6, lg: 8 }} h={16} align="center" justify="space-between">
-          {/* Brand */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-2xl hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+
+      {/* HEADER */}
+      <Box
+        as="header"
+        position="sticky"
+        top="0"
+        zIndex="40"
+        bg={bgHeader}
+        backdropFilter="blur(8px)"
+        boxShadow="sm"
+      >
+        <Flex
+          maxW="6xl"
+          mx="auto"
+          px={{ base: 4, sm: 6, lg: 8 }}
+          h={16}
+          align="center"
+          justify="space-between"
+        >
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-bold text-2xl hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
             <GlobeAltIcon className="w-7 h-7 text-blue-600" />
             RIPY
           </Link>
 
-          {/* ===== Desktop & Tablet Nav ===== */}
-          <Flex align="center" gap={2}>
-            {/* ≥ 764px: full text */}
+          {/* Desktop Nav */}
+          <Flex align="center" gap={2} overflowX="auto" maxW="calc(100vw - 64px)">
             <HStack display={{ base: "none", md: "flex" }} spacing={4}>
               {navLinks.map((link) => {
                 const isActive = router.pathname === link.href;
@@ -118,70 +131,65 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <Link key={link.href} href={link.href}>
                     <Button
                       variant="ghost"
-                      leftIcon={link.icon ? <link.icon className="w-5 h-5" /> : undefined}
+                      leftIcon={
+                        link.icon ? <link.icon className="w-5 h-5" /> : undefined
+                      }
                       color={isActive ? activeColor : "inherit"}
                       _hover={{ bg: hoverBg }}
                       isDisabled={routeLoading}
                       fontSize="sm"
                     >
-                      <Text display={{ base: "none", lg: "block" }}>{link.label}</Text>
+                      <Text display={{ base: "none", lg: "block" }}>
+                        {link.label}
+                      </Text>
                     </Button>
                   </Link>
                 );
               })}
             </HStack>
 
-            {/* Auth action / Avatar */}
-            <Box display={{ base: "none", md: "block" }}>
-              {!authLoading && (
-                user ? (
-                  <Menu>
-                    <MenuButton as={Button} variant="ghost" size="sm" rounded="full" _hover={{ bg: avatarHover }}>
-                      <HStack>
-                        <Avatar size="sm" name={user.email || "User"} src={user?.user_metadata?.avatar_url} />
-                        <Text display={{ base: "none", md: "inline" }}>{user.email?.split('@')[0]}</Text>
-                      </HStack>
-                    </MenuButton>
-                    <MenuList>
-                      <MenuItem onClick={() => router.push('/profile')} isDisabled={signingOut}>{t('profile') || 'Profile'}</MenuItem>
-                      {user?.user_metadata?.role === 'admin' && (
-                        <MenuItem onClick={() => router.push('/admin')}>Admin</MenuItem>
-                      )}
-                      <MenuItem onClick={handleSignOut} isDisabled={signingOut}>{signingOut ? 'Signing out…' : (t('signout') || 'Sign out')}</MenuItem>
-                    </MenuList>
-                  </Menu>
-                ) : (
-                  <Button size="sm" colorScheme="blue" variant="ghost" onClick={() => router.push('/auth')}>
-                    {t('signin') || 'Sign in'}
-                  </Button>
-                )
-              )}
-            </Box>
+            {/* Auth menu */}
+            {!authLoading && user ? (
+              <Menu>
+                <MenuButton as={Button} variant="ghost" size="sm" rounded="full">
+                  <HStack>
+                    <Avatar
+                      size="sm"
+                      name={user.email || "User"}
+                      src={user?.user_metadata?.avatar_url}
+                    />
+                    <Text display={{ base: "none", md: "inline" }}>
+                      {user.email?.split("@")[0]}
+                    </Text>
+                  </HStack>
+                </MenuButton>
+                <Portal>
+                  <MenuList>
+                    <MenuItem onClick={() => router.push("/profile")} isDisabled={signingOut}>
+                      {t("profile") || "Profile"}
+                    </MenuItem>
+                    {user.user_metadata?.role === "admin" && (
+                      <MenuItem onClick={() => router.push("/admin")}>Admin</MenuItem>
+                    )}
+                    <MenuItem onClick={handleSignOut} isDisabled={signingOut}>
+                      {signingOut ? "Signing out…" : t("signout") || "Sign out"}
+                    </MenuItem>
+                  </MenuList>
+                </Portal>
+              </Menu>
+            ) : !authLoading ? (
+              <Button
+                size="sm"
+                colorScheme="blue"
+                variant="ghost"
+                onClick={() => router.push("/auth")}
+              >
+                {t("signin") || "Sign in"}
+              </Button>
+            ) : null}
 
-            {/* 640–763px: icons only */}
-            <HStack display={{ base: "none", sm: "flex", md: "none" }} spacing={1}>
-              {navLinks.map((link) => {
-                const isActive = router.pathname === link.href;
-                return (
-                  <Tooltip key={link.href} label={link.label}>
-                    <Link href={link.href}>
-                      <IconButton
-                        aria-label={link.label}
-                        icon={link.icon ? <link.icon className="w-5 h-5" /> : <Text>{link.label[0]}</Text>}
-                        size="sm"
-                        variant="ghost"
-                        color={isActive ? activeColor : "inherit"}
-                        _hover={{ bg: hoverBg }}
-                        isDisabled={routeLoading}
-                      />
-                    </Link>
-                  </Tooltip>
-                );
-              })}
-            </HStack>
-
-            {/* Language & Dark Mode Switch (≥640px) */}
-              <Flex align="center" gap={2} display={{ base: "none", sm: "flex" }}>
+            {/* Language + DarkMode */}
+            <HStack spacing={2} ml={2}>
               <ButtonGroup isAttached variant="ghost" size="sm" bg={bgLang} rounded="full" p="1">
                 {["en", "hi", "ru"].map((lng) => {
                   const isActive = router.locale === lng;
@@ -194,7 +202,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       py={1}
                       fontWeight="semibold"
                       fontSize="xs"
-                      className={`transition-all duration-200 ${isActive ? "shadow" : ""}`}
                       bg={isActive ? activeColor : "transparent"}
                       color={isActive ? "white" : "inherit"}
                       _hover={{ bg: isActive ? activeColor : hoverBg }}
@@ -215,124 +222,104 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 onClick={toggleColorMode}
                 isDisabled={routeLoading}
               />
-            </Flex>
-
-            {/* < 640px: Hamburger Drawer */}
-            <Box display={{ base: "flex", sm: "none" }}>
-              <IconButton
-                aria-label="Menu"
-                icon={<Bars3Icon className="w-6 h-6" />}
-                variant="ghost"
-                onClick={onOpen}
-                isDisabled={routeLoading}
-              />
-              <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
-                <DrawerOverlay />
-                <DrawerContent>
-                  <DrawerCloseButton />
-                  <DrawerHeader>Menu</DrawerHeader>
-                  <DrawerBody>
-                    <VStack spacing={4} align="stretch">
-                      {navLinks.map((link) => {
-                        const isActive = router.pathname === link.href;
-                        return (
-                          <Link key={link.href} href={link.href} onClick={onClose}>
-                            <Button
-                              variant="ghost"
-                              leftIcon={link.icon ? <link.icon className="w-5 h-5" /> : undefined}
-                              color={isActive ? activeColor : "inherit"}
-                              width="100%"
-                              justifyContent="flex-start"
-                              isDisabled={routeLoading}
-                            >
-                              {link.label}
-                            </Button>
-                          </Link>
-                        );
-                      })}
-
-                      {/* Mobile auth entry */}
-                      <Box pt={3}>
-                        {!authLoading && (
-                          user ? (
-                            <>
-                              {user?.user_metadata?.role === 'admin' && (
-                                <Button variant="ghost" width="100%" justifyContent="flex-start" onClick={() => { router.push('/admin'); onClose(); }}>
-                                  Admin
-                                </Button>
-                              )}
-                              <Button variant="ghost" width="100%" justifyContent="flex-start" onClick={() => { handleSignOut(); onClose(); }} isDisabled={signingOut}>
-                                {signingOut ? 'Signing out…' : (t('signout') || 'Sign out')}
-                              </Button>
-                            </>
-                          ) : (
-                            <Button variant="ghost" width="100%" justifyContent="flex-start" onClick={() => { router.push('/auth'); onClose(); }}>
-                              {t('signin') || 'Sign in'}
-                            </Button>
-                          )
-                        )}
-                      </Box>
-
-                      {/* Language Switch */}
-                      <HStack spacing={2} mt={4}>
-                        {["en", "hi", "ru"].map((lng) => {
-                          const isActive = router.locale === lng;
-                          return (
-                            <Button
-                              key={lng}
-                              onClick={() => {
-                                changeLanguage(lng);
-                                onClose();
-                              }}
-                              size="sm"
-                              rounded="full"
-                              bg={isActive ? activeColor : "transparent"}
-                              color={isActive ? "white" : "inherit"}
-                              _hover={{ bg: isActive ? activeColor : hoverBg }}
-                              isDisabled={routeLoading}
-                            >
-                              {lng === "en" ? "EN" : lng === "hi" ? "हिंदी" : "RU"}
-                            </Button>
-                          );
-                        })}
-                      </HStack>
-
-                      {/* Dark Mode Toggle */}
-                      <IconButton
-                        mt={4}
-                        aria-label="Toggle dark mode"
-                        icon={colorMode === "light" ? <MoonIcon className="w-5 h-5" /> : <SunIcon className="w-5 h-5" />}
-                        onClick={toggleColorMode}
-                        width="100%"
-                        isDisabled={routeLoading}
-                      />
-                    </VStack>
-                  </DrawerBody>
-                </DrawerContent>
-              </Drawer>
-            </Box>
+            </HStack>
           </Flex>
+
+          {/* Mobile Hamburger */}
+          <Box display={{ base: "flex", sm: "none" }}>
+            <IconButton
+              aria-label="Menu"
+              icon={<Bars3Icon className="w-6 h-6" />}
+              variant="ghost"
+              onClick={onOpen}
+              isDisabled={routeLoading}
+            />
+            <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
+              <DrawerOverlay />
+              <DrawerContent>
+                <DrawerCloseButton />
+                <DrawerHeader>Menu</DrawerHeader>
+                <DrawerBody>
+                  <VStack spacing={4} align="stretch">
+                    {navLinks.map((link) => (
+                      <Link key={link.href} href={link.href} onClick={onClose}>
+                        <Button
+                          variant="ghost"
+                          leftIcon={link.icon ? <link.icon className="w-5 h-5" /> : undefined}
+                          width="100%"
+                          justifyContent="flex-start"
+                        >
+                          {link.label}
+                        </Button>
+                      </Link>
+                    ))}
+
+                    {!authLoading && user && user.user_metadata?.role === "admin" && (
+                      <Button
+                        variant="ghost"
+                        width="100%"
+                        justifyContent="flex-start"
+                        onClick={() => {
+                          router.push("/admin");
+                          onClose();
+                        }}
+                      >
+                        Admin
+                      </Button>
+                    )}
+
+                    {!authLoading && user ? (
+                      <Button
+                        variant="ghost"
+                        width="100%"
+                        justifyContent="flex-start"
+                        onClick={() => {
+                          handleSignOut();
+                          onClose();
+                        }}
+                        isDisabled={signingOut}
+                      >
+                        {signingOut ? "Signing out…" : t("signout") || "Sign out"}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        width="100%"
+                        justifyContent="flex-start"
+                        onClick={() => {
+                          router.push("/auth");
+                          onClose();
+                        }}
+                      >
+                        {t("signin") || "Sign in"}
+                      </Button>
+                    )}
+                  </VStack>
+                </DrawerBody>
+              </DrawerContent>
+            </Drawer>
+          </Box>
         </Flex>
       </Box>
 
-      {/* ===== MAIN with smooth page transition ===== */}
+      {/* MAIN CONTENT */}
       <AnimatePresence mode="wait">
         <MotionBox
           key={router.asPath}
           flex="1"
-          pt ={2}
+          pt={2}
+          px={{ base: 2, sm: 4 }}
+          overflowX="auto"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.3 }}
         >
-          <ErrorBoundary>
-            {children}
-          </ErrorBoundary>
+          <ErrorBoundary>{children}</ErrorBoundary>
         </MotionBox>
       </AnimatePresence>
 
-      {/* ===== FOOTER ===== */}
+      {/* FOOTER */}
       <Box as="footer" bg={footerBg} borderTop="1px solid" borderColor={footerBorder}>
         <Box maxW="6xl" mx="auto" px={4} py={6} textAlign="center" fontSize="sm" color={footerTextColor}>
           © {new Date().getFullYear()} Dr. Kumar Sumant · Evidence-based patient education

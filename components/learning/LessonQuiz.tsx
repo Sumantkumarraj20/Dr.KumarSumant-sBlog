@@ -14,7 +14,8 @@ import {
   HStack,
 } from "@chakra-ui/react";
 import router from "next/router";
-import Layout from "../Layout";
+import { JSONContent } from "@tiptap/react";
+import { RichTextView } from "../RichTextView";
 
 interface LessonQuizProps {
   lessonId: string;
@@ -24,10 +25,10 @@ interface LessonQuizProps {
 
 interface QuizQuestion {
   id: string;
-  question_text: string;
+  question_text: JSONContent;
   options: string[];
   correct_answer: string[];
-  explanation?: string;
+  explanation?: JSONContent;
   source_exam?: string; // optional field
 }
 
@@ -73,8 +74,11 @@ export default function LessonQuiz({
         id: q.id,
         question_text:
           typeof q.question_text === "string"
-            ? q.question_text
-            : q.question_text?.text || "",
+            ? {
+                type: "doc",
+                content: [{ type: "paragraph", text: q.question_text }],
+              }
+            : q.question_text, // ✅ already JSONContent
         options: Array.isArray(q.options)
           ? q.options
           : JSON.parse(q.options || "[]"),
@@ -83,8 +87,11 @@ export default function LessonQuiz({
           : JSON.parse(q.correct_answer || "[]"),
         explanation:
           typeof q.explanation === "string"
-            ? q.explanation
-            : q.explanation?.text || "",
+            ? {
+                type: "doc",
+                content: [{ type: "paragraph", text: q.explanation }],
+              }
+            : q.explanation,
         source_exam: q.source_exam || null,
       }));
 
@@ -155,7 +162,7 @@ export default function LessonQuiz({
       setSelectedOption(null);
 
       if (currentIdx >= deck.length - 1) {
-        onCompleteQuiz(); // finished
+        onCompleteQuiz();
       } else {
         setCurrentIdx((idx) => Math.min(idx, deck.length - 2));
       }
@@ -163,7 +170,7 @@ export default function LessonQuiz({
   };
 
   return (
-    <Layout>
+    <Flex direction="column" align="center" p={6} minH="80vh">
       <Box
         p={6}
         borderWidth={1}
@@ -174,7 +181,6 @@ export default function LessonQuiz({
         bg={bg}
         borderColor={border}
       >
-        {/* Header with question number + source exam top-right */}
         <Flex justify="space-between" align="center" mb={4}>
           <Text fontSize="xl" fontWeight="semibold">
             Question {currentIdx + 1} / {deck.length}
@@ -195,9 +201,9 @@ export default function LessonQuiz({
         </Flex>
 
         {/* Question text */}
-        <Text mb={4} fontSize="lg" fontWeight="medium">
-          {currentQuestion.question_text}
-        </Text>
+        <Box mb={4}>
+          <RichTextView content={currentQuestion.question_text} />
+        </Box>
 
         {/* Options */}
         <VStack align="stretch" spacing={3}>
@@ -235,20 +241,21 @@ export default function LessonQuiz({
 
         {/* Feedback */}
         {selectedOption && (
-          <Text
-            mt={5}
-            fontWeight="medium"
-            color={
-              currentQuestion.correct_answer.includes(selectedOption)
-                ? correctColor
-                : wrongColor
-            }
-          >
-            {currentQuestion.correct_answer.includes(selectedOption)
-              ? "Correct! ✅ "
-              : "Incorrect ❌ "}
-            {currentQuestion.explanation}
-          </Text>
+          <Box mt={5}>
+            <Text
+              fontWeight="medium"
+              color={
+                currentQuestion.correct_answer.includes(selectedOption)
+                  ? correctColor
+                  : wrongColor
+              }
+            >
+              {currentQuestion.correct_answer.includes(selectedOption)
+                ? "Correct! ✅ "
+                : "Incorrect ❌ "}
+            </Text>
+            <RichTextView content={currentQuestion.explanation} />
+          </Box>
         )}
 
         {/* Subtle footer if no exam metadata */}
@@ -258,24 +265,6 @@ export default function LessonQuiz({
           </Text>
         )}
       </Box>
-
-      <VStack spacing={6} mt={8}>
-        <HStack spacing={4}>
-          <Button
-            colorScheme="blue"
-            onClick={() => router.push(`/lesson/${lessonId}`)}
-          >
-            Back
-          </Button>
-          <Button
-            variant="outline"
-            colorScheme="gray"
-            onClick={() => router.push("/lessons")}
-          >
-            TopicList
-          </Button>
-        </HStack>
-      </VStack>
-    </Layout>
+    </Flex>
   );
 }

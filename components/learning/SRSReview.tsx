@@ -13,6 +13,8 @@ import {
 } from "@chakra-ui/react";
 import { fetchDueCards, recordReview, SRSRow } from "@/lib/srs";
 import type { QuizQuestion } from "@/lib/adminApi";
+import { JSONContent } from "@tiptap/react";
+import { RichTextView } from "@/components/RichTextView";
 
 interface SRSReviewProps {
   userId: string;
@@ -31,6 +33,11 @@ export default function SRSReview({
   const [loading, setLoading] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
 
+  const emptyDoc: JSONContent = {
+    type: "doc",
+    content: [{ type: "paragraph", content: [] }],
+  };
+
   const loadDeck = async () => {
     if (!userId) return;
     setLoading(true);
@@ -41,7 +48,24 @@ export default function SRSReview({
         toast({ title: "Error loading deck", status: "error" });
         setDeck([]);
       } else {
-        setDeck(data);
+        // Normalize question_text & explanation as JSONContent
+        const normalized = (data || []).map((row) => ({
+          ...row,
+          quiz_questions: row.quiz_questions
+            ? {
+                ...row.quiz_questions,
+                question_text:
+                  typeof row.quiz_questions.question_text === "string"
+                    ? { type: "doc", content: [{ type: "paragraph", text: row.quiz_questions.question_text }] }
+                    : row.quiz_questions.question_text || emptyDoc,
+                explanation:
+                  typeof row.quiz_questions.explanation === "string"
+                    ? { type: "doc", content: [{ type: "paragraph", text: row.quiz_questions.explanation }] }
+                    : row.quiz_questions.explanation || emptyDoc,
+              }
+            : undefined,
+        }));
+        setDeck(normalized);
         setIdx(0);
       }
     } finally {
@@ -51,31 +75,29 @@ export default function SRSReview({
 
   useEffect(() => {
     loadDeck();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const current = deck[idx];
+  const q = current?.quiz_questions as QuizQuestion | undefined;
 
   const applyQuality = async (quality: 0 | 3 | 4 | 5 | number) => {
     if (!current) return;
     setLoading(true);
     try {
-      // update DB
       await recordReview(userId, current.question_id, quality);
+
       toast({
         title: "Saved",
         description:
-          quality >= 3 ? "Good — scheduled for next review." : "Marked again — will repeat soon.",
+          quality >= 3
+            ? "Good — scheduled for next review."
+            : "Marked again — will repeat soon.",
         status: quality >= 3 ? "success" : "warning",
         duration: 2000,
       });
 
-      // Remove card from local deck
       setDeck((d) => d.filter((c) => c.id !== current.id));
-
-      // Reset answer view
       setShowAnswer(false);
-      // keep idx at current value (since we've removed current), but ensure bounds
       setIdx((i) => Math.min(i, Math.max(0, deck.length - 2)));
     } catch (err) {
       console.error("recordReview error", err);
@@ -96,8 +118,6 @@ export default function SRSReview({
       </VStack>
     );
 
-  const q = current.quiz_questions as QuizQuestion | undefined;
-
   return (
     <VStack align="stretch" spacing={6} p={4}>
       <Box>
@@ -107,19 +127,18 @@ export default function SRSReview({
       </Box>
 
       <Box p={6} borderWidth="1px" borderRadius="md" bg="white">
-        <Text fontWeight="bold" fontSize="lg" mb={3}>
-          {q?.question_text || "Question text missing"}
-        </Text>
+        {/* Question rendered as RichText */}
+        <RichTextView content={q?.question_text || emptyDoc} />
 
-        {/* hidden answer, reveal on click */}
+        {/* Hidden answer */}
         <Collapse in={showAnswer}>
           <Box mt={4} borderTop="1px dashed" pt={3}>
             <Text fontWeight="semibold">Answer / Explanation</Text>
 
-            {/* Options (if present) */}
+            {/* Options */}
             {Array.isArray(q?.options) && (
               <VStack align="start" spacing={2} mt={2}>
-                {(q!.options || []).map((opt: any, i: number) => (
+                {q!.options.map((opt: any, i: number) => (
                   <Text key={i} pl={2}>
                     • {typeof opt === "string" ? opt : JSON.stringify(opt)}
                   </Text>
@@ -127,14 +146,10 @@ export default function SRSReview({
               </VStack>
             )}
 
-            {/* explanation (may be JSON text) */}
+            {/* Explanation rendered as RichText */}
             {q?.explanation && (
               <Box mt={3}>
-                <Text fontSize="sm" color="gray.700">
-                  {typeof q.explanation === "string"
-                    ? q.explanation
-                    : (q.explanation as any).text || JSON.stringify(q.explanation)}
-                </Text>
+                <RichTextView content={q.explanation || emptyDoc} />
               </Box>
             )}
           </Box>
@@ -147,7 +162,7 @@ export default function SRSReview({
         )}
       </Box>
 
-      {/* Review action buttons */}
+      {/* Review buttons */}
       <HStack spacing={3}>
         <Button colorScheme="red" onClick={() => applyQuality(0)}>
           Again
@@ -168,7 +183,10 @@ export default function SRSReview({
           Refresh deck
         </Button>
         <Text fontSize="sm" color="gray.500">
-          Next review: {current.next_review ? new Date(current.next_review).toLocaleString() : "—"}
+          Next review:{" "}
+          {current?.next_review
+            ? new Date(current.next_review).toLocaleString()
+            : "—"}
         </Text>
       </HStack>
     </VStack>
