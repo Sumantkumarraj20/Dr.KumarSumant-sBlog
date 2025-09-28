@@ -21,7 +21,7 @@ import {
   ChartBarIcon,
   BookOpenIcon,
 } from "@heroicons/react/24/outline";
-import LessonQuizEditorPage from "@/components/admin/LessonQuizEditorPage";
+import CourseAdmin from "@/components/admin/CourseAdmin";
 import Layout from "@/components/Layout";
 
 export default function AdminPage() {
@@ -79,7 +79,7 @@ export default function AdminPage() {
           h="100%"
           overflowY="auto"
         >
-          <LessonQuizEditorPage />
+          <CourseAdmin />
         </Box>
       </Flex>
     </Layout>

@@ -1,4 +1,3 @@
-// components/admin/CoursesAdmin.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
@@ -25,10 +24,6 @@ import {
   Collapse,
 } from "@chakra-ui/react";
 
-import { useEditor, EditorContent, JSONContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
-import Link from "@tiptap/extension-link";
 import RichTextEditor from "@/components/RichTextEditor";
 import { RichTextView } from "@/components/RichTextView";
 
@@ -45,7 +40,6 @@ import {
   createLesson,
   updateLesson,
   deleteLesson,
-  // quiz & question
   createQuiz,
   deleteQuiz,
   createQuizQuestion,
@@ -69,22 +63,30 @@ import {
   Module,
   Course,
 } from "@/lib/adminApi";
+import { JSONContent } from "@tiptap/react";
 import { useAuth } from "@/context/authContext";
-/* ---------------------------
-  Helper: small HeroIcon wrapper for Chakra sizing
-  --------------------------- */
+
+// Helper: small HeroIcon wrapper for Chakra sizing
 const Icon = (IconComp: any, props: any = {}) => (
   <ChakraBox as={IconComp} {...props} />
 );
 
-/* ---------------------------
-  The Component
-  --------------------------- */
+// Default empty document structure
+const emptyDoc: JSONContent = {
+  type: "doc",
+  content: [
+    {
+      type: "paragraph",
+      content: [],
+    },
+  ],
+};
+
 export default function CoursesAdmin() {
   const toast = useToast();
   const { user } = useAuth();
 
-  // main data
+  // Main data
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
@@ -92,7 +94,7 @@ export default function CoursesAdmin() {
   // UI state: which tree nodes are expanded
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
-  // Selected node: type + id
+  // Selected node
   type Selected =
     | { type: "course"; id: string }
     | { type: "module"; id: string }
@@ -102,69 +104,28 @@ export default function CoursesAdmin() {
 
   const [selected, setSelected] = useState<Selected>(null);
 
-  // prefetch quizzes for a lesson
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-
-  //   useEffect(() => {
-  //   if (!lesson?.id) return;
-
-  //   const fetchQuizzes = async () => {
-  //     try {
-  //       const { data, error } = await supabase
-  //         .from('quizzes')
-  //         .select('*')
-  //         .eq('lesson_id', lesson.id);
-
-  //       if (error) throw error;
-
-  //       setQuizzes(data || []);
-  //     } catch (err) {
-  //       console.error('Error fetching quizzes:', err);
-  //     }
-  //   };
-
-  //   fetchQuizzes();
-  // }, [lesson?.id]);
-
-  // Right-pane editing forms
-  // Course form
+  // Form states
   const [courseTitle, setCourseTitle] = useState("");
   const [courseDescription, setCourseDescription] = useState("");
-
-  // Module form
   const [moduleTitle, setModuleTitle] = useState("");
-
-  // Unit form
   const [unitTitle, setUnitTitle] = useState("");
-
-  // Lesson form / editor
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonOrder, setLessonOrder] = useState<number>(0);
-  const [lessonContent, setLessonContent] = useState<any>(null);
-  const [questionText, setQuestionText] = useState<any>(null);
 
-  // TipTap editor setup (SSR-safe)
-  const editor = useEditor({
-    extensions: [StarterKit, Image, Link],
-    content: "",
-    editorProps: { attributes: { class: "prose max-w-none" } },
-    immediatelyRender: false,
-  });
+  // Rich text content states
+  const [lessonContent, setLessonContent] = useState<JSONContent>(emptyDoc);
+  const [newQuestionText, setNewQuestionText] = useState<JSONContent>(emptyDoc);
+  const [newExplanation, setNewExplanation] = useState<JSONContent>(emptyDoc);
 
-  // Quiz form (for new question creation)
-  const [newQuestionText, setNewQuestionText] = useState<JSONContent | null>(
-    null
-  );
+  // Quiz form states
   const [newOptions, setNewOptions] = useState<string[]>(["", "", "", ""]);
   const [newCorrect, setNewCorrect] = useState<number[]>([]);
-  const [newExplanation, setNewExplanation] = useState("");
 
   // Load data
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchCourseWithContent();
-      // Ensure consistent shape: make arrays exist
       const normalized = (data || []).map((c: any) => ({
         ...c,
         modules: (c.modules || []).map((m: any) => ({
@@ -175,7 +136,11 @@ export default function CoursesAdmin() {
               ...l,
               quizzes: (l.quizzes || []).map((q: any) => ({
                 ...q,
-                questions: q.quiz_questions || [], // ✅ normalize questions array
+                questions: (q.quiz_questions || []).map((qq: any) => ({
+                  ...qq,
+                  // Ensure explanation has proper structure
+                  explanation: qq.explanation || { text: emptyDoc },
+                })),
               })),
             })),
           })),
@@ -194,27 +159,93 @@ export default function CoursesAdmin() {
     load();
   }, [load]);
 
-  // Toggle expand by id
-  const toggleExpand = (id: string) => {
-    setExpandedById((s) => ({ ...s, [id]: !s[id] }));
+  // Helper to safely parse content
+  const parseContent = (content: any): JSONContent => {
+    if (!content) return emptyDoc;
+
+    if (typeof content === "string") {
+      try {
+        // Try to parse as JSON first
+        const parsed = JSON.parse(content);
+        return parsed;
+      } catch {
+        // If it's HTML string, create a simple paragraph structure
+        return {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: content }],
+            },
+          ],
+        };
+      }
+    }
+
+    if (typeof content === "object") {
+      // Ensure it has the basic structure
+      if (content.type === "doc" && Array.isArray(content.content)) {
+        return content;
+      }
+      // If it's an explanation object with text property
+      if (content.text) {
+        return parseContent(content.text);
+      }
+    }
+
+    return emptyDoc;
   };
 
-  // Unwrap pattern if your adminApi returns { data, error }
-  const unwrap = async <T,>(p: Promise<{ data: T; error: any }>) => {
-    const r = await p;
-    if (r.error) throw r.error;
-    return r.data;
+  // Selection handler with proper content loading
+  const selectNode = (node: Selected) => {
+    setSelected(node);
+
+    // Reset all form fields
+    setCourseTitle("");
+    setCourseDescription("");
+    setModuleTitle("");
+    setUnitTitle("");
+    setLessonTitle("");
+    setLessonOrder(0);
+    setLessonContent(emptyDoc);
+    setNewQuestionText(emptyDoc);
+    setNewOptions(["", "", "", ""]);
+    setNewCorrect([]);
+    setNewExplanation(emptyDoc);
+
+    if (!node) return;
+
+    try {
+      if (node.type === "course") {
+        const c = findCourse(node.id);
+        if (c) {
+          setCourseTitle(c.title || "");
+          setCourseDescription(c.description || "");
+        }
+      } else if (node.type === "module") {
+        const found = findModule(node.id);
+        if (found) setModuleTitle(found.module.title || "");
+      } else if (node.type === "unit") {
+        const found = findUnit(node.id);
+        if (found) setUnitTitle(found.unit.title || "");
+      } else if (node.type === "lesson") {
+        const found = findLesson(node.id);
+        if (found && found.lesson) {
+          setLessonTitle(found.lesson.title || "");
+          setLessonOrder(found.lesson.order_index || 0);
+
+          // Load lesson content properly
+          const content = parseContent(found.lesson.content);
+          setLessonContent(content);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading selected node:", error);
+      toast({ title: "Error loading content", status: "error" });
+    }
   };
 
-  /* ---------------------------
-    Helpers to find & update nested course data immutably
-     - updateCourseTree: takes a callback that receives a shallow copy and returns updated copy
-    --------------------------- */
-  const updateCourseTree = (updater: (s: Course[]) => Course[]) => {
-    setCourses((prev) => updater(prev.map((c) => ({ ...c }))));
-  };
-
-  // find helpers
+  // Find helpers (keep your existing implementations)
   const findCourse = (id: string) => courses.find((c) => c.id === id) || null;
   const findModule = (id: string) => {
     for (const c of courses) {
@@ -244,85 +275,155 @@ export default function CoursesAdmin() {
     return null;
   };
 
-  /* ---------------------------
-    Selection: when user clicks a node, populate right-side form
-    --------------------------- */
-
-  const emptyDoc: JSONContent = {
-    type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        content: [],
-      },
-    ],
+  // Update course tree helper
+  const updateCourseTree = (updater: (s: Course[]) => Course[]) => {
+    setCourses((prev) => updater(prev.map((c) => ({ ...c }))));
   };
-  const selectNode = (node: Selected) => {
-    setSelected(node);
-    // reset form fields then populate depending on type
-    setCourseTitle("");
-    setCourseDescription("");
-    setModuleTitle("");
-    setUnitTitle("");
-    setLessonTitle("");
-    setLessonOrder(0);
-    editor?.commands.setContent("");
-    setNewQuestionText(emptyDoc);
-    setNewOptions(["", "", "", ""]);
-    setNewCorrect([]);
-    setNewExplanation("");
 
-    if (!node) return;
+  // Unwrap pattern
+  const unwrap = async <T,>(p: Promise<{ data: T; error: any }>) => {
+    const r = await p;
+    if (r.error) throw r.error;
+    return r.data;
+  };
 
-    if (node.type === "course") {
-      const c = findCourse(node.id);
-      if (c) {
-        setCourseTitle(c.title || "");
-        setCourseDescription(c.description || "");
+  // Toggle expand
+  const toggleExpand = (id: string) => {
+    setExpandedById((s) => ({ ...s, [id]: !s[id] }));
+  };
+
+  // Optimized RichTextEditor component with proper error handling
+  const SafeRichTextEditor = ({
+    value,
+    onChange,
+    placeholder = "Start typing...",
+  }: {
+    value: JSONContent;
+    onChange: (content: JSONContent) => void;
+    placeholder?: string;
+  }) => {
+    const safeValue = useMemo(() => {
+      try {
+        return value && typeof value === "object" ? value : emptyDoc;
+      } catch {
+        return emptyDoc;
       }
-    } else if (node.type === "module") {
-      const found = findModule(node.id);
-      if (found) setModuleTitle(found.module.title || "");
-    } else if (node.type === "unit") {
-      const found = findUnit(node.id);
-      if (found) setUnitTitle(found.unit.title || "");
-    } else if (node.type === "lesson") {
-      const found = findLesson(node.id);
-      if (found && found.lesson) {
-        setLessonTitle(found.lesson.title || "");
-        setLessonOrder(found.lesson.order_index || 0);
-        // TipTap content guard: accept string (HTML) or ProseMirror JSON doc
-        const content = found.lesson.content;
-        if (editor) {
-          if (typeof content === "string") {
-            try {
-              editor.commands.setContent(content);
-            } catch (err) {
-              // fallback: clear or attempt to put html
-              editor.commands.clearContent();
-            }
-          } else if (content && typeof content === "object") {
-            // Try as JSON doc first, fallback to clear
-            try {
-              editor.commands.setContent(content);
-            } catch (err) {
-              // If JSON fails (unknown nodes), fallback to clear
-              editor.commands.clearContent();
-            }
-          } else {
-            editor.commands.clearContent();
-          }
-        }
-      }
+    }, [value]);
+
+    return (
+      <RichTextEditor
+        value={safeValue}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
+    );
+  };
+
+  // Lesson CRUD handlers (updated to use the new content state)
+  const handleSaveLesson = async () => {
+    if (!selected || selected.type !== "lesson") return;
+    try {
+      const payload: Partial<Lesson> = {
+        title: lessonTitle,
+        content: lessonContent,
+        order_index: lessonOrder,
+      };
+
+      const updated = await unwrap(updateLesson(selected.id, payload));
+
+      updateCourseTree((prev) =>
+        prev.map((c) => ({
+          ...c,
+          modules: (c.modules || []).map((m) => ({
+            ...m,
+            units: (m.units || []).map((u) => ({
+              ...u,
+              lessons: (u.lessons || []).map((l) =>
+                l.id === updated.id ? updated : l
+              ),
+            })),
+          })),
+        }))
+      );
+      toast({ title: "Lesson saved", status: "success" });
+    } catch (err: any) {
+      toast({
+        title: "Error saving lesson",
+        description: String(err),
+        status: "error",
+      });
     }
   };
 
-  /* ---------------------------
-    CRUD handlers
-    - Course / Module / Unit / Lesson create/update/delete
-    - Quiz & QuizQuestion inline CRUD under Lesson
-    --------------------------- */
+  // Updated question creation to use rich text
+  const handleAddQuestionInline = async (quizId: string, lessonId: string) => {
+    // Validate that question text has actual content
+    const hasText = newQuestionText?.content?.some(
+      (node) =>
+        node.type === "paragraph" && node.content?.some((t) => t.text?.trim())
+    );
 
+    if (!hasText || newCorrect.length === 0) {
+      toast({ title: "Incomplete question", status: "warning" });
+      return;
+    }
+
+    try {
+      const payload: Partial<QuizQuestion> = {
+        lesson_id: lessonId,
+        quiz_id: quizId,
+        question_text: newQuestionText,
+        options: newOptions,
+        correct_answer: newCorrect.map((i) => newOptions[i]),
+        explanation: { JSONContent: newExplanation },
+      };
+
+      const created = await unwrap(createQuizQuestion(payload));
+
+      updateCourseTree((prev) =>
+        prev.map((c) => ({
+          ...c,
+          modules: c.modules.map((m) => ({
+            ...m,
+            units: m.units.map((u) => ({
+              ...u,
+              lessons: u.lessons.map((l) =>
+                l.id === lessonId
+                  ? {
+                      ...l,
+                      quizzes: l.quizzes?.map((q) =>
+                        q.id === quizId
+                          ? {
+                              ...q,
+                              questions: [...(q.questions || []), created],
+                            }
+                          : q
+                      ),
+                    }
+                  : l
+              ),
+            })),
+          })),
+        }))
+      );
+
+      // Reset form
+      setNewQuestionText(emptyDoc);
+      setNewOptions(["", "", "", ""]);
+      setNewCorrect([]);
+      setNewExplanation(emptyDoc);
+
+      toast({ title: "Question added", status: "success" });
+    } catch (err: any) {
+      toast({
+        title: "Error adding question",
+        description: String(err),
+        status: "error",
+      });
+    }
+  };
+
+  // Keep your existing CRUD handlers for courses, modules, units, etc.
   // COURSE
   const handleCreateCourse = async () => {
     const title = prompt("New course title");
@@ -657,46 +758,6 @@ export default function CoursesAdmin() {
     }
   };
 
-  const handleSaveLesson = async () => {
-    if (!selected || selected.type !== "lesson") return;
-    try {
-      const content: JSONContent = editor?.getJSON() ?? {
-        type: "doc",
-        content: [],
-      };
-
-      const payload: Partial<Lesson> = {
-        title: lessonTitle,
-        content,
-        order_index: lessonOrder,
-      };
-
-      const updated = await unwrap(updateLesson(selected.id, payload));
-      // update in tree
-      updateCourseTree((prev) =>
-        prev.map((c) => ({
-          ...c,
-          modules: (c.modules || []).map((m) => ({
-            ...m,
-            units: (m.units || []).map((u) => ({
-              ...u,
-              lessons: (u.lessons || []).map((l) =>
-                l.id === updated.id ? updated : l
-              ),
-            })),
-          })),
-        }))
-      );
-      toast({ title: "Lesson saved", status: "success" });
-    } catch (err: any) {
-      toast({
-        title: "Error saving lesson",
-        description: String(err),
-        status: "error",
-      });
-    }
-  };
-
   const handleDeleteLessonLocal = async (id: string) => {
     if (!confirm("Delete lesson?")) return;
     try {
@@ -791,74 +852,6 @@ export default function CoursesAdmin() {
     }
   };
 
-  const handleAddQuestionInline = async (quizId: string, lessonId: string) => {
-    // Validate that question text has actual content
-    const hasText = newQuestionText?.content?.some(
-      (node) =>
-        node.type === "paragraph" && node.content?.some((t) => t.text?.trim())
-    );
-
-    if (!hasText || newCorrect.length === 0) {
-      toast({ title: "Incomplete question", status: "warning" });
-      return;
-    }
-
-    try {
-      const payload: Partial<QuizQuestion> = {
-        lesson_id: lessonId,
-        quiz_id: quizId,
-        question_text: newQuestionText, // store as JSON
-        options: newOptions,
-        correct_answer: newCorrect.map((i) => newOptions[i]),
-        explanation: { text: newExplanation },
-      };
-
-      const created = await unwrap(createQuizQuestion(payload));
-
-      // Attach to course tree
-      updateCourseTree((prev) =>
-        prev.map((c) => ({
-          ...c,
-          modules: c.modules.map((m) => ({
-            ...m,
-            units: m.units.map((u) => ({
-              ...u,
-              lessons: u.lessons.map((l) =>
-                l.id === lessonId
-                  ? {
-                      ...l,
-                      quizzes: l.quizzes?.map((q) =>
-                        q.id === quizId
-                          ? {
-                              ...q,
-                              questions: [...(q.questions || []), created],
-                            }
-                          : q
-                      ),
-                    }
-                  : l
-              ),
-            })),
-          })),
-        }))
-      );
-
-      // Reset draft
-      setNewQuestionText(emptyDoc);
-      setNewOptions(["", "", "", ""]);
-      setNewCorrect([]);
-      setNewExplanation("");
-
-      toast({ title: "Question added", status: "success" });
-    } catch (err: any) {
-      toast({
-        title: "Error adding question",
-        description: String(err),
-        status: "error",
-      });
-    }
-  };
-
   const handleDeleteQuestionInline = async (
     quizId: string,
     questionId: string,
@@ -905,9 +898,7 @@ export default function CoursesAdmin() {
     }
   };
 
-  /* ---------------------------
-    Derived helpers for rendering and selection
-    --------------------------- */
+  // Derived data
   const visibleCourses = useMemo(() => {
     if (!search.trim()) return courses;
     const q = search.toLowerCase();
@@ -920,9 +911,7 @@ export default function CoursesAdmin() {
     return found?.lesson || null;
   }, [selected, courses]);
 
-  /* ---------------------------
-    Render helpers (recursive-ish tree but controlled)
-    --------------------------- */
+  // Render tree (keep your existing implementation)
   const renderTree = () => {
     return visibleCourses.map((course) => (
       <Box
@@ -1136,9 +1125,7 @@ export default function CoursesAdmin() {
     ));
   };
 
-  /* ---------------------------
-    Right side editor detail forms
-    --------------------------- */
+  // Updated detail pane with proper RichTextEditor usage
   const renderDetailPane = () => {
     if (!selected) {
       return (
@@ -1151,7 +1138,6 @@ export default function CoursesAdmin() {
         </Box>
       );
     }
-
     if (selected.type === "course") {
       const c = findCourse(selected.id);
       return (
@@ -1287,9 +1273,10 @@ export default function CoursesAdmin() {
 
           <FormControl mb={2}>
             <FormLabel>Content</FormLabel>
-            <RichTextEditor
-              value={lessonContent} // should be JSON
-              onChange={(c) => setLessonContent(c)}
+            <SafeRichTextEditor
+              value={lessonContent}
+              onChange={setLessonContent}
+              placeholder="Write your lesson content here..."
             />
           </FormControl>
 
@@ -1307,7 +1294,7 @@ export default function CoursesAdmin() {
 
           <Divider my={6} />
 
-          {/* Quizzes */}
+          {/* Quizzes section */}
           <Box>
             <HStack justify="space-between">
               <Text fontWeight="semibold">Quizzes</Text>
@@ -1338,7 +1325,7 @@ export default function CoursesAdmin() {
                     </HStack>
                   </Flex>
 
-                  {/* Questions */}
+                  {/* Questions list */}
                   <VStack spacing={2} mt={3} align="stretch">
                     {(q.questions || []).map((qq, idx) => (
                       <Flex
@@ -1349,14 +1336,27 @@ export default function CoursesAdmin() {
                         p={2}
                         borderRadius="md"
                       >
-                        <Box>
+                        <Box flex="1">
                           <Text fontWeight="semibold">Q{idx + 1}</Text>
                           <RichTextView
-                            content={qq.question_text || emptyDoc}
+                            content={parseContent(qq.question_text)}
                           />
-                          <Text fontSize="sm">
-                            Correct: {qq.correct_answer.join(", ")}
+                          <Text fontSize="sm" mt={1}>
+                            Options: {qq.options?.join(", ")}
                           </Text>
+                          <Text fontSize="sm">
+                            Correct: {qq.correct_answer?.join(", ")}
+                          </Text>
+                          {qq.explanation?.text && (
+                            <Box mt={1}>
+                              <Text fontSize="sm" fontWeight="semibold">
+                                Explanation:
+                              </Text>
+                              <RichTextView
+                                content={parseContent(qq.explanation.text)}
+                              />
+                            </Box>
+                          )}
                         </Box>
                         <Button
                           size="xs"
@@ -1371,15 +1371,17 @@ export default function CoursesAdmin() {
                     ))}
                   </VStack>
 
-                  {/* Add a new question form (per-quiz) */}
+                  {/* Add new question form */}
                   <Box mt={3} borderTopWidth={1} pt={3}>
                     <FormControl mb={2}>
                       <FormLabel>Question Text</FormLabel>
-                      <RichTextEditor
-                        value={newQuestionText} // should be JSON or empty string
-                        onChange={(c) => setNewQuestionText(c)} // store editor JSON in state
+                      <SafeRichTextEditor
+                        value={newQuestionText}
+                        onChange={setNewQuestionText}
+                        placeholder="Enter the question text..."
                       />
                     </FormControl>
+
                     {newOptions.map((opt, i) => (
                       <FormControl key={i} mb={2}>
                         <FormLabel>Option {i + 1}</FormLabel>
@@ -1408,11 +1410,13 @@ export default function CoursesAdmin() {
                         </Button>
                       </FormControl>
                     ))}
+
                     <FormControl mb={2}>
                       <FormLabel>Explanation</FormLabel>
-                      <Textarea
+                      <SafeRichTextEditor
                         value={newExplanation}
-                        onChange={(e) => setNewExplanation(e.target.value)}
+                        onChange={setNewExplanation}
+                        placeholder="Enter explanation for the correct answer..."
                       />
                     </FormControl>
 
@@ -1431,13 +1435,9 @@ export default function CoursesAdmin() {
         </Box>
       );
     }
-
     return null;
   };
 
-  /* ---------------------------
-    UI layout
-    --------------------------- */
   return (
     <Flex gap={4} align="stretch" p={4}>
       {/* Left column: tree */}
