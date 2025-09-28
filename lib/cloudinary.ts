@@ -1,15 +1,4 @@
-import { v2 as cloudinary } from 'cloudinary';
-
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true,
-});
-
-export default cloudinary;
-
-// lib/cloudinary.ts
+// lib/cloudinary.ts (client-safe)
 import axios from "axios";
 
 export async function uploadToCloudinary(file: File, folder = "lessons") {
@@ -24,10 +13,9 @@ export async function uploadToCloudinary(file: File, folder = "lessons") {
       formData,
       { headers: { "X-Requested-With": "XMLHttpRequest" } }
     );
-    return res.data.secure_url;
+    return res.data.secure_url as string;
   } catch (err) {
     console.error("Cloudinary upload error:", err);
     throw err;
   }
 }
-
