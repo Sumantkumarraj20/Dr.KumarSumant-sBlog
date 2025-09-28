@@ -12,22 +12,13 @@ import {
   Badge,
   Spinner,
   HStack,
-  Progress,
   Alert,
   AlertIcon,
+  Progress,
 } from "@chakra-ui/react";
 import { JSONContent } from "@tiptap/react";
 import { RichTextView } from "../RichTextView";
-
-interface LessonQuizProps {
-  lessonId: string;
-  userId: string;
-  lessonTitle: string;
-  unitTitle: string;
-  onCompleteQuiz: (results: QuizResults) => void;
-  onBackToLesson: () => void;
-  onBackToUnit: () => void;
-}
+import { LessonQuizProps } from "@/types/learn";
 
 interface QuizQuestion {
   id: string;
@@ -38,37 +29,31 @@ interface QuizQuestion {
   source_exam?: string;
 }
 
-export interface QuizResults {
-  totalQuestions: number;
-  correctAnswers: number;
-  score: number;
-  passed: boolean;
-}
-
 export default function LessonQuiz({
   lessonId,
   userId,
   lessonTitle,
-  unitTitle,
   onCompleteQuiz,
   onBackToLesson,
-  onBackToUnit,
+  hasNextLesson,
+  unit,
+  lesson,
 }: LessonQuizProps) {
   const [deck, setDeck] = useState<QuizQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState({ correct: 0, total: 0 });
   const [quizCompleted, setQuizCompleted] = useState(false);
-
+  const [score, setScore] = useState({ correct: 0, total: 0 });
+  
   const bg = useColorModeValue("white", "gray.900");
   const border = useColorModeValue("gray.200", "gray.700");
   const correctColor = useColorModeValue("green.600", "green.300");
   const wrongColor = useColorModeValue("red.600", "red.300");
   const subtleText = useColorModeValue("gray.600", "gray.400");
 
-  // Fetch quiz questions
+  // Enhanced quiz fetching with error handling
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
@@ -98,19 +83,34 @@ export default function LessonQuiz({
 
         const normalized = (questions || []).map((q: any) => ({
           id: q.id,
-          question_text: normalizeContent(q.question_text),
-          options: Array.isArray(q.options) ? q.options : JSON.parse(q.options || "[]"),
-          correct_answer: Array.isArray(q.correct_answer) 
-            ? q.correct_answer 
+          question_text:
+            typeof q.question_text === "string"
+              ? {
+                  type: "doc",
+                  content: [{ type: "paragraph", text: q.question_text }],
+                }
+              : q.question_text,
+          options: Array.isArray(q.options)
+            ? q.options
+            : JSON.parse(q.options || "[]"),
+          correct_answer: Array.isArray(q.correct_answer)
+            ? q.correct_answer
             : JSON.parse(q.correct_answer || "[]"),
-          explanation: normalizeContent(q.explanation),
+          explanation:
+            typeof q.explanation === "string"
+              ? {
+                  type: "doc",
+                  content: [{ type: "paragraph", text: q.explanation }],
+                }
+              : q.explanation,
           source_exam: q.source_exam || null,
         }));
 
         setDeck(normalized);
-        setResults(prev => ({ ...prev, total: normalized.length }));
+        setScore(prev => ({ ...prev, total: normalized.length }));
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load quiz");
+        console.error("Error fetching quiz:", err);
+        setError("Failed to load quiz. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -119,89 +119,188 @@ export default function LessonQuiz({
     fetchQuiz();
   }, [lessonId]);
 
-  const normalizeContent = (content: string | JSONContent): JSONContent => {
-    if (typeof content === "string") {
-      return {
-        type: "doc",
-        content: [{ type: "paragraph", text: content }],
-      };
-    }
-    return content || { type: "doc", content: [] };
-  };
-
   const handleAnswer = async (option: string) => {
-    if (selectedOption || quizCompleted) return;
+    if (selectedOption || !deck[currentIdx]) return;
 
-    const isCorrect = currentQuestion.correct_answer.includes(option);
     setSelectedOption(option);
-
-    // Update results
+    const isCorrect = deck[currentIdx].correct_answer.includes(option);
+    
+    // Update score
     if (isCorrect) {
-      setResults(prev => ({ ...prev, correct: prev.correct + 1 }));
+      setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
     }
 
-    // Save to SRS
-    await recordReview(userId, currentQuestion.id, isCorrect ? 4 : 0);
+    // Save to SRS DB
+    try {
+      await recordReview(userId, deck[currentIdx].id, isCorrect ? 4 : 0);
+    } catch (err) {
+      console.error("Error recording review:", err);
+    }
 
+    // Move to next question or complete quiz
     setTimeout(() => {
       const nextIndex = currentIdx + 1;
       
-      if (nextIndex >= deck.length) {
-        // Quiz completed
-        const quizResults: QuizResults = {
-          totalQuestions: deck.length,
-          correctAnswers: results.correct + (isCorrect ? 1 : 0),
-          score: Math.round(((results.correct + (isCorrect ? 1 : 0)) / deck.length) * 100),
-          passed: (results.correct + (isCorrect ? 1 : 0)) / deck.length >= 0.7, // 70% to pass
-        };
-        setQuizCompleted(true);
-        onCompleteQuiz(quizResults);
-      } else {
-        // Move to next question
+      if (nextIndex < deck.length) {
         setCurrentIdx(nextIndex);
         setSelectedOption(null);
+      } else {
+        setQuizCompleted(true);
       }
     }, 1500);
   };
 
-  const progress = deck.length > 0 ? ((currentIdx + 1) / deck.length) * 100 : 0;
+  const handleQuizCompletion = () => {
+    onCompleteQuiz();
+  };
 
+  const handleRetryQuiz = () => {
+    setCurrentIdx(0);
+    setSelectedOption(null);
+    setQuizCompleted(false);
+    setScore({ correct: 0, total: deck.length });
+  };
+
+  // Loading state
   if (loading) {
     return (
       <Flex h="80vh" align="center" justify="center" direction="column" gap={4}>
         <Spinner size="xl" thickness="5px" color="blue.500" />
-        <Text color="gray.600">Loading quiz questions...</Text>
+        <Text color={subtleText}>Loading quiz...</Text>
       </Flex>
     );
   }
 
+  // Error state
   if (error) {
     return (
-      <Flex h="80vh" align="center" justify="center">
-        <Alert status="error" borderRadius="lg" maxW="md">
-          <AlertIcon />
-          <Text>{error}</Text>
-        </Alert>
-      </Flex>
+      <Box
+        borderWidth="1px"
+        borderRadius="xl"
+        shadow="md"
+        p={8}
+        textAlign="center"
+        maxW="2xl"
+        mx="auto"
+      >
+        <VStack spacing={6}>
+          <Alert status="error" borderRadius="md">
+            <AlertIcon />
+            {error}
+          </Alert>
+          <HStack spacing={4}>
+            <Button onClick={onBackToLesson} colorScheme="blue">
+              Back to Lesson
+            </Button>
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Retry
+            </Button>
+          </HStack>
+        </VStack>
+      </Box>
     );
   }
 
+  // No quiz available
   if (!deck.length) {
     return (
-      <Box borderWidth="1px" borderRadius="xl" shadow="md" p={8} maxW="2xl" mx="auto">
+      <Box
+        borderWidth="1px"
+        borderRadius="xl"
+        shadow="md"
+        p={8}
+        textAlign="center"
+        maxW="2xl"
+        mx="auto"
+      >
         <VStack spacing={6}>
-          <Text fontSize="xl" fontWeight="semibold" color="gray.700" textAlign="center">
-            📚 No Quiz Available
-          </Text>
-          <Text color="gray.600" textAlign="center">
-            This lesson doesn't have a quiz yet. You can proceed to the next lesson or review the content.
+          <Text fontSize="xl" fontWeight="semibold" color="gray.700">
+            🚫 No quiz available for this lesson.
           </Text>
           <HStack spacing={4}>
-            <Button colorScheme="blue" onClick={onBackToLesson}>
-              Back to Lesson
+            <Button onClick={onBackToLesson} colorScheme="blue">
+              Back to Lesson Content
             </Button>
-            <Button variant="outline" onClick={onBackToUnit}>
-              Back to Unit
+            <Button onClick={handleQuizCompletion} variant="outline">
+              Continue Anyway
+            </Button>
+          </HStack>
+        </VStack>
+      </Box>
+    );
+  }
+
+  // Quiz completion screen
+  if (quizCompleted) {
+    const percentage = Math.round((score.correct / score.total) * 100);
+    const isPassing = percentage >= 70;
+
+    return (
+      <Box
+        p={8}
+        borderWidth={1}
+        rounded="2xl"
+        shadow="lg"
+        maxW="2xl"
+        mx="auto"
+        bg={bg}
+        borderColor={border}
+        textAlign="center"
+      >
+        <VStack spacing={6}>
+          <Box>
+            <Text fontSize="4xl" mb={2}>
+              {isPassing ? "🎉" : "📚"}
+            </Text>
+            <Text fontSize="2xl" fontWeight="bold">
+              {isPassing ? "Quiz Completed!" : "Keep Practicing"}
+            </Text>
+            <Text color={subtleText}>
+              Lesson: {lessonTitle}
+            </Text>
+            {unit && (
+              <Text fontSize="sm" color={subtleText}>
+                Unit: {unit.title}
+              </Text>
+            )}
+          </Box>
+
+          <Box w="100%">
+            <Progress 
+              value={percentage} 
+              colorScheme={isPassing ? "green" : "orange"} 
+              size="lg" 
+              borderRadius="full"
+              mb={2}
+            />
+            <Text fontSize="xl" fontWeight="semibold">
+              {score.correct} / {score.total} Correct ({percentage}%)
+            </Text>
+          </Box>
+
+          <Alert status={isPassing ? "success" : "info"} borderRadius="md">
+            <AlertIcon />
+            {isPassing 
+              ? "Great job! You're ready to move forward." 
+              : "Review the material and try again for better results."}
+          </Alert>
+
+          <HStack spacing={4} flexWrap="wrap" justify="center">
+            <Button onClick={onBackToLesson} variant="outline">
+              Review Lesson
+            </Button>
+            
+            {!isPassing && (
+              <Button onClick={handleRetryQuiz} colorScheme="orange">
+                Retry Quiz
+              </Button>
+            )}
+            
+            <Button 
+              onClick={handleQuizCompletion} 
+              colorScheme={isPassing ? "green" : "blue"}
+            >
+              {hasNextLesson ? "Next Lesson" : "Continue"}
             </Button>
           </HStack>
         </VStack>
@@ -210,51 +309,55 @@ export default function LessonQuiz({
   }
 
   const currentQuestion = deck[currentIdx];
+  const progress = ((currentIdx) / deck.length) * 100;
 
   return (
-    <Flex direction="column" align="center" p={6} minH="80vh" maxW="4xl" mx="auto" w="100%">
-      {/* Header with navigation */}
-      <VStack w="100%" spacing={4} mb={6}>
-        <HStack w="100%" justify="space-between">
-          <Button variant="ghost" onClick={onBackToLesson} size="sm">
-            ← Back to Lesson
-          </Button>
-          <Text fontSize="sm" color="gray.600" fontWeight="medium">
-            {unitTitle} • {lessonTitle}
-          </Text>
-        </HStack>
-        
-        <VStack w="100%" spacing={2}>
-          <HStack w="100%" justify="space-between">
-            <Text fontSize="lg" fontWeight="semibold">
-              Lesson Quiz
-            </Text>
-            <Text fontSize="sm" color="gray.600">
-              Question {currentIdx + 1} of {deck.length}
-            </Text>
-          </HStack>
-          <Progress value={progress} w="100%" size="sm" colorScheme="blue" borderRadius="full" />
-        </VStack>
-      </VStack>
-
-      {/* Quiz Content */}
+    <Flex direction="column" align="center" p={6} minH="80vh">
       <Box
         p={6}
         borderWidth={1}
         rounded="2xl"
         shadow="md"
-        w="100%"
+        maxW="2xl"
+        mx="auto"
         bg={bg}
         borderColor={border}
+        w="100%"
       >
-        {/* Question header */}
+        {/* Header with progress */}
+        <VStack spacing={4} align="stretch" mb={6}>
+          <Flex justify="space-between" align="center">
+            <Text fontSize="lg" fontWeight="semibold">
+              Lesson Quiz: {lessonTitle}
+            </Text>
+            <Text fontSize="sm" color={subtleText}>
+              {currentIdx + 1} / {deck.length}
+            </Text>
+          </Flex>
+          
+          <Progress 
+            value={progress} 
+            colorScheme="blue" 
+            size="sm" 
+            borderRadius="full" 
+          />
+        </VStack>
+
+        {/* Question metadata */}
         <Flex justify="space-between" align="center" mb={4}>
-          <Text fontSize="lg" fontWeight="medium" color="gray.700">
+          <Text fontSize="xl" fontWeight="semibold">
             Question {currentIdx + 1}
           </Text>
 
           {currentQuestion.source_exam && (
-            <Badge colorScheme="blue" fontSize="xs" px={2} py={1} rounded="lg">
+            <Badge
+              colorScheme="blue"
+              fontSize="xs"
+              px={2}
+              py={1}
+              rounded="lg"
+              whiteSpace="nowrap"
+            >
               📘 {currentQuestion.source_exam}
             </Badge>
           )}
@@ -266,36 +369,60 @@ export default function LessonQuiz({
         </Box>
 
         {/* Options */}
-        <VStack align="stretch" spacing={3} mb={6}>
-          {currentQuestion.options.map((opt, index) => {
+        <VStack align="stretch" spacing={3} mb={4}>
+          {currentQuestion.options.map((opt) => {
             const isSelected = selectedOption === opt;
             const isCorrect = currentQuestion.correct_answer.includes(opt);
-            const letter = String.fromCharCode(65 + index); // A, B, C, D
+            const showCorrectness = selectedOption && isCorrect;
 
             return (
               <Button
                 key={opt}
                 onClick={() => handleAnswer(opt)}
-                isDisabled={!!selectedOption || quizCompleted}
+                isDisabled={!!selectedOption}
                 variant="outline"
                 justifyContent="flex-start"
                 size="lg"
                 fontWeight="normal"
+                textAlign="left"
+                whiteSpace="normal"
+                height="auto"
+                py={3}
+                px={4}
                 borderWidth={2}
                 borderColor={
-                  isSelected ? (isCorrect ? "green.400" : "red.400") : border
+                  isSelected 
+                    ? (isCorrect ? "green.400" : "red.400") 
+                    : showCorrectness 
+                    ? "green.400" 
+                    : border
                 }
                 bg={
                   isSelected
                     ? isCorrect
                       ? "green.50"
                       : "red.50"
+                    : showCorrectness
+                    ? "green.50"
                     : "transparent"
                 }
-                _hover={{ bg: useColorModeValue("gray.50", "gray.800") }}
-                leftIcon={<Text fontWeight="bold">{letter}.</Text>}
+                _hover={{ 
+                  bg: !selectedOption ? useColorModeValue("gray.50", "gray.800") : undefined 
+                }}
+                transition="all 0.2s"
+                _disabled={{
+                  opacity: 1,
+                  cursor: 'not-allowed'
+                }}
               >
-                {opt}
+                <Text as="span" textAlign="left">
+                  {opt}
+                  {showCorrectness && !isSelected && (
+                    <Text as="span" ml={2} color="green.500">
+                      ✓
+                    </Text>
+                  )}
+                </Text>
               </Button>
             );
           })}
@@ -304,15 +431,13 @@ export default function LessonQuiz({
         {/* Feedback */}
         {selectedOption && (
           <Box 
-            mt={6} 
+            mt={5} 
             p={4} 
             borderRadius="lg" 
-            bg={currentQuestion.correct_answer.includes(selectedOption) ? "green.50" : "red.50"}
-            borderColor={currentQuestion.correct_answer.includes(selectedOption) ? "green.200" : "red.200"}
-            borderWidth={1}
+            bg={useColorModeValue("gray.50", "gray.800")}
           >
             <Text
-              fontWeight="semibold"
+              fontWeight="medium"
               color={
                 currentQuestion.correct_answer.includes(selectedOption)
                   ? correctColor
@@ -321,32 +446,27 @@ export default function LessonQuiz({
               mb={2}
             >
               {currentQuestion.correct_answer.includes(selectedOption)
-                ? "✓ Correct! "
-                : "✗ Incorrect "}
+                ? "Correct! ✅"
+                : "Incorrect ❌"}
             </Text>
-            <RichTextView content={currentQuestion.explanation} />
+            {currentQuestion.explanation && (
+              <RichTextView content={currentQuestion.explanation} />
+            )}
           </Box>
         )}
 
-        {/* Navigation for completed quiz */}
-        {quizCompleted && (
-          <VStack mt={6} spacing={4}>
-            <Text fontSize="lg" fontWeight="semibold" color="green.600">
-              Quiz Completed! 🎉
+        {/* Navigation */}
+        <Flex justify="space-between" mt={6} pt={4} borderTopWidth={1} borderColor={border}>
+          <Button onClick={onBackToLesson} variant="ghost" size="sm">
+            ← Back to Lesson
+          </Button>
+          
+          {selectedOption && currentIdx < deck.length - 1 && (
+            <Text color={subtleText} fontSize="sm">
+              Next question in a moment...
             </Text>
-            <Text>
-              Score: {results.correct}/{deck.length} ({Math.round((results.correct / deck.length) * 100)}%)
-            </Text>
-            <Button colorScheme="blue" w="100%" onClick={() => onCompleteQuiz({
-              totalQuestions: deck.length,
-              correctAnswers: results.correct,
-              score: Math.round((results.correct / deck.length) * 100),
-              passed: results.correct / deck.length >= 0.7,
-            })}>
-              Continue Learning
-            </Button>
-          </VStack>
-        )}
+          )}
+        </Flex>
       </Box>
     </Flex>
   );
