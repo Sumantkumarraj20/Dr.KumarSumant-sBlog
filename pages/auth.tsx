@@ -33,7 +33,7 @@ import {
   Card,
   CardBody,
 } from "@chakra-ui/react";
-import { ViewIcon, ViewOffIcon, CheckCircleIcon } from "@chakra-ui/icons";
+import { BiSearchAlt, BiShow, BiShowAlt } from "react-icons/bi";
 import { FiMail, FiLock, FiUser, FiArrowRight } from "react-icons/fi";
 
 export default function AuthPage() {
@@ -116,7 +116,7 @@ export default function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        await signUp(email, password, fullName);
+        await signUp(email, password);
         toast({
           title: "Account created successfully! 🎉",
           description: "Welcome to our learning platform!",
@@ -347,7 +347,7 @@ export default function AuthPage() {
                       <InputRightElement h="full">
                         <IconButton
                           aria-label={showPassword ? "Hide password" : "Show password"}
-                          icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                          icon={showPassword ? <BiShow /> : <BiSearchAlt />}
                           variant="ghost"
                           onClick={() => setShowPassword(!showPassword)}
                         />
@@ -392,7 +392,7 @@ export default function AuthPage() {
                         <InputRightElement h="full">
                           <IconButton
                             aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                            icon={showConfirmPassword ? <ViewOffIcon /> : <ViewIcon />}
+                            icon={showConfirmPassword ? <BiShowAlt /> : <BiShow />}
                             variant="ghost"
                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                           />
