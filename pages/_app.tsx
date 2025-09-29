@@ -5,6 +5,8 @@ import { appWithTranslation } from 'next-i18next';
 import { LanguageProvider } from '../context/languageContext';
 import { ChakraProvider } from '@chakra-ui/react';
 import { extendTheme } from '@chakra-ui/react';
+import 'prosemirror-view/style/prosemirror.css';
+
 
 const theme = extendTheme({});
 

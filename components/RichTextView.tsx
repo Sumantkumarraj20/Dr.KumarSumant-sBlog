@@ -1,3 +1,4 @@
+// components/RichTextView.tsx
 "use client";
 
 import { useEditor, EditorContent, JSONContent } from "@tiptap/react";
@@ -10,89 +11,171 @@ import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import TextAlign from "@tiptap/extension-text-align";
 import Underline from "@tiptap/extension-underline";
-import { ImageUpload, VideoUpload, AudioUpload } from "../extensions/media";
+import Highlight from "@tiptap/extension-highlight";
+import Color from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Typography from "@tiptap/extension-typography";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import BulletList from "@tiptap/extension-bullet-list";
+import OrderedList from "@tiptap/extension-ordered-list";
+import ListItem from "@tiptap/extension-list-item";
+
 import { Box } from "@chakra-ui/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface RichTextViewProps {
   content: JSONContent | string | null;
   className?: string;
   maxHeight?: string;
   showBorder?: boolean;
+  backgroundColor?: string;
 }
 
-export function RichTextView({ 
-  content, 
+export function RichTextView({
+  content,
   className = "",
   maxHeight,
-  showBorder = true 
+  showBorder = true,
+  backgroundColor = "transparent",
 }: RichTextViewProps) {
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3],
+        heading: { 
+          levels: [1, 2, 3] as const
+        },
+        codeBlock: {
+          HTMLAttributes: {
+            class: "font-mono bg-gray-100 p-4 rounded border border-gray-300 my-4 text-sm",
+          },
+        },
+        blockquote: {
+          HTMLAttributes: {
+            class: "border-l-4 border-blue-500 pl-4 italic bg-blue-50 py-2 my-4 text-gray-700",
+          },
+        },
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+      }),
+      BulletList.configure({
+        HTMLAttributes: {
+          class: "list-disc pl-6 my-4 space-y-2 text-gray-700",
+        },
+      }),
+      OrderedList.configure({
+        HTMLAttributes: {
+          class: "list-decimal pl-6 my-4 space-y-2 text-gray-700",
+        },
+      }),
+      ListItem.configure({
+        HTMLAttributes: {
+          class: "leading-relaxed",
         },
       }),
       Link.configure({
-        openOnClick: false, // Disable click in view mode
+        openOnClick: false,
         HTMLAttributes: {
-          class: 'text-blue-500 hover:text-blue-700 underline',
+          class: "text-blue-600 underline hover:text-blue-800 transition-colors duration-200",
+          target: "_blank",
+          rel: "noopener noreferrer",
         },
       }),
       Image.configure({
         HTMLAttributes: {
-          class: 'rounded-lg shadow-md max-w-full h-auto mx-auto',
+          class: "rounded-lg shadow-md mx-auto my-4 transition-all duration-200 hover:shadow-lg",
+          draggable: false,
+          loading: "lazy",
         },
       }),
       Table.configure({
-        resizable: false, // Disable resizing in view mode
+        resizable: false,
         HTMLAttributes: {
-          class: 'border-collapse border border-gray-300 min-w-full bg-white',
+          class: "border-collapse border border-gray-300 min-w-full my-6 bg-white shadow-sm rounded-lg overflow-hidden",
         },
       }),
-      TableRow,
+      TableRow.configure({
+        HTMLAttributes: {
+          class: "hover:bg-gray-50 transition-colors",
+        },
+      }),
       TableHeader.configure({
         HTMLAttributes: {
-          class: 'bg-gray-100 font-semibold',
+          class: "bg-blue-50 font-semibold text-gray-800 border-b-2 border-blue-200",
         },
       }),
       TableCell.configure({
         HTMLAttributes: {
-          class: 'border border-gray-300 p-3',
+          class: "border border-gray-200 p-4 text-gray-700",
         },
       }),
       TextAlign.configure({
-        types: ['heading', 'paragraph', 'image'],
+        types: ["heading", "paragraph", "image"],
+        alignments: ["left", "center", "right", "justify"],
       }),
-      Underline,
-      ImageUpload,
-      VideoUpload,
-      AudioUpload,
+      Underline.configure({
+        HTMLAttributes: {
+          class: "underline",
+        },
+      }),
+      Highlight.configure({
+        multicolor: true,
+        HTMLAttributes: {
+          class: "bg-yellow-200 px-1 rounded",
+        },
+      }),
+      Color.configure({
+        types: ["textStyle"]
+      }),
+      TextStyle,
+      Typography,
+      TaskList.configure({
+        HTMLAttributes: {
+          class: "pl-0 list-none my-4 space-y-2",
+        },
+      }),
+      TaskItem.configure({
+        nested: true,
+        HTMLAttributes: {
+          class: "flex items-start my-1",
+        },
+      }),
     ],
     editorProps: {
       attributes: {
-        class: "prose prose-lg max-w-none focus:outline-none p-4 rounded-md " +
-               "prose-headings:font-bold prose-headings:text-gray-800 " +
-               "prose-p:my-3 prose-p:text-gray-700 " +
-               "prose-ul:my-3 prose-ol:my-3 " +
-               "prose-li:my-1 prose-li:text-gray-700 " +
-               "prose-blockquote:border-l-4 prose-blockquote:border-blue-400 " +
-               "prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:bg-gray-50 " +
-               "prose-blockquote:py-1 prose-blockquote:text-gray-600 " +
-               "prose-table:min-w-full prose-table:my-4 " +
-               "prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-td:text-gray-700 " +
-               "prose-th:bg-gray-100 prose-th:font-semibold prose-th:p-3 prose-th:text-gray-800 " +
-               "prose-th:border prose-th:border-gray-300 " +
-               "prose-img:rounded-lg prose-img:shadow-md prose-img:my-4 prose-img:mx-auto " +
-               "prose-a:text-blue-500 prose-a:no-underline hover:prose-a:underline " +
-               "prose-strong:text-gray-800 prose-strong:font-bold " +
-               "prose-em:italic prose-em:text-gray-700 " +
-               "prose-code:bg-gray-100 prose-code:rounded prose-code:px-1 prose-code:py-0.5 " +
-               "prose-code:text-gray-800 prose-code:font-mono " +
-               "prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:rounded-lg " +
-               "prose-pre:p-4 prose-pre:overflow-x-auto " +
-               "prose-hr:border-gray-300 prose-hr:my-6"
+        class:
+          "prose prose-lg max-w-none focus:outline-none p-6 rounded-md bg-transparent " +
+          // Headings
+          "prose-h1:font-bold prose-h1:text-3xl prose-h1:text-gray-900 prose-h1:mt-8 prose-h1:mb-4 " +
+          "prose-h2:font-bold prose-h2:text-2xl prose-h2:text-gray-900 prose-h2:mt-6 prose-h2:mb-3 " +
+          "prose-h3:font-semibold prose-h3:text-xl prose-h3:text-gray-900 prose-h3:mt-4 prose-h3:mb-2 " +
+          // Paragraphs
+          "prose-p:my-3 prose-p:text-gray-700 prose-p:leading-relaxed " +
+          // Lists
+          "prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-li:text-gray-700 " +
+          // Blockquotes
+          "prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:bg-blue-50 prose-blockquote:py-2 prose-blockquote:text-gray-700 " +
+          // Tables
+          "prose-table:min-w-full prose-table:my-6 prose-table:bg-white prose-table:shadow-sm prose-table:rounded-lg prose-table:overflow-hidden " +
+          "prose-td:border prose-td:border-gray-200 prose-td:p-4 prose-td:text-gray-700 " +
+          "prose-th:bg-blue-50 prose-th:font-semibold prose-th:p-4 prose-th:text-gray-800 prose-th:border prose-th:border-gray-200 " +
+          // Images
+          "prose-img:rounded-lg prose-img:shadow-md prose-img:my-4 prose-img:mx-auto prose-img:max-w-full prose-img:h-auto " +
+          // Links
+          "prose-a:text-blue-600 prose-a:no-underline hover:prose-a:text-blue-800 hover:prose-a:underline prose-a:transition-colors prose-a:duration-200 " +
+          // Text formatting
+          "prose-strong:text-gray-800 prose-strong:font-bold " +
+          "prose-em:italic prose-em:text-gray-700 " +
+          // Code
+          "prose-code:bg-gray-100 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:text-gray-800 prose-code:font-mono prose-code:text-sm " +
+          "prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:rounded-lg prose-pre:p-4 prose-pre:overflow-x-auto prose-pre:my-4 " +
+          // Horizontal rules
+          "prose-hr:border-gray-300 prose-hr:my-8 " +
+          // Task lists
+          "prose-ul:list-disc prose-ol:list-decimal",
       },
     },
     content: "",
@@ -100,262 +183,287 @@ export function RichTextView({
     immediatelyRender: false,
   });
 
-  // Update content when it changes
+  // Enhanced content loading with better error handling
   useEffect(() => {
     if (!editor) return;
 
     try {
-      if (typeof content === "string") {
-        // Handle HTML string content
-        editor.commands.setContent(content, { 
-          emitUpdate: false,
-          errorOnInvalidContent: false 
-        });
-      } else if (content && typeof content === "object" && content.type === "doc") {
-        // Handle JSON content
-        editor.commands.setContent(content, { 
-          emitUpdate: false,
-          errorOnInvalidContent: false 
-        });
-      } else if (content === null || content === undefined) {
-        // Handle null or undefined content
-        editor.commands.clearContent();
-      } else {
-        // Handle invalid content
-        console.warn("Invalid content type provided to RichTextView:", typeof content);
-        editor.commands.setContent({
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [{ type: "text", text: "Content is provided properly." }]
-            }
-          ]
-        }, { emitUpdate: false });
-      }
+      const normalizeContent = (raw: any): JSONContent => {
+        if (!raw) return { type: "doc", content: [] };
+
+        // Handle string content
+        if (typeof raw === "string") {
+          try {
+            const parsed = JSON.parse(raw);
+            return normalizeContent(parsed);
+          } catch {
+            // If it's plain text, wrap it in a paragraph
+            return {
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: raw }],
+                },
+              ],
+            };
+          }
+        }
+
+        // Handle array content (legacy format)
+        if (Array.isArray(raw)) {
+          return {
+            type: "doc",
+            content: raw
+          };
+        }
+
+        // Handle proper JSONContent
+        if (typeof raw === "object" && raw.type === "doc") {
+          return raw as JSONContent;
+        }
+
+        // Handle single content object
+        if (typeof raw === "object" && raw.type) {
+          return {
+            type: "doc",
+            content: [raw]
+          };
+        }
+
+        // Fallback
+        return { type: "doc", content: [] };
+      };
+
+      const normalizedContent = normalizeContent(content);
+      editor.commands.setContent(normalizedContent, { 
+        emitUpdate: false, 
+        errorOnInvalidContent: false 
+      });
+
     } catch (error) {
-      console.error("Error setting content in RichTextView:", error);
+      console.error("Error loading content in RichTextView:", error);
       editor.commands.setContent({
         type: "doc",
         content: [
-          {
-            type: "paragraph",
-            content: [{ type: "text", text: "Error loading content" }]
+          { 
+            type: "paragraph", 
+            content: [{ type: "text", text: "Content could not be loaded." }] 
           }
-        ]
-      }, { emitUpdate: false });
+        ],
+      });
     }
   }, [editor, content]);
 
-  // Handle custom image attributes from the editor
+  // Enhanced image and table styling
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !editorContainerRef.current) return;
 
-    const updateImageStyles = () => {
-      // Add event listeners to images and apply custom styles
-      const images = editor.view.dom.querySelectorAll('img');
-      images.forEach(img => {
-        // Apply custom styles from data attributes
-        const alignment = img.getAttribute('data-alignment');
-        const customClass = img.getAttribute('data-custom-class');
-        const width = img.getAttribute('style') || '';
+    const applyEnhancedStyles = () => {
+      const container = editorContainerRef.current;
+      if (!container) return;
+
+      // Style images
+      const images = container.querySelectorAll("img");
+      images.forEach((img) => {
+        // Ensure responsive images
+        img.classList.add("max-w-full", "h-auto", "rounded-lg", "shadow-md");
         
-        // Apply alignment classes
-        if (alignment) {
-          img.classList.add(`float-${alignment}`);
-          img.classList.add('mx-2');
-          img.classList.add('mb-4');
+        // Handle image alignment from editor
+        const alignment = img.style.float || img.getAttribute("data-align");
+        if (alignment === "left") {
+          img.classList.add("float-left", "mr-4", "mb-4", "mt-2");
+        } else if (alignment === "right") {
+          img.classList.add("float-right", "ml-4", "mb-4", "mt-2");
+        } else {
+          img.classList.add("mx-auto", "block");
         }
-        
-        // Apply custom CSS classes
-        if (customClass) {
-          customClass.split(' ').forEach(cls => {
-            if (cls.trim()) img.classList.add(cls.trim());
-          });
+
+        // Handle custom image sizes
+        const width = img.getAttribute("width") || img.style.width;
+        if (width) {
+          img.style.maxWidth = width;
+          img.style.width = "auto";
         }
+      });
+
+      // Style tables for better responsiveness
+      const tables = container.querySelectorAll("table");
+      tables.forEach((table) => {
+        table.classList.add("w-full", "table-auto");
         
-        // Ensure proper styling
-        img.classList.add('rounded-lg', 'shadow-md', 'max-w-full', 'h-auto');
-        
-        // Set cursor style for linked images
-        if (img.parentElement?.tagName === 'A') {
-          img.style.cursor = 'pointer';
+        // Ensure table headers have proper styling
+        const headers = table.querySelectorAll("th");
+        headers.forEach((th) => {
+          th.classList.add("text-left", "font-semibold");
+        });
+      });
+
+      // Style code blocks
+      const codeBlocks = container.querySelectorAll("pre");
+      codeBlocks.forEach((pre) => {
+        pre.classList.add("overflow-x-auto");
+      });
+
+      // Clear floats after content
+      const contentElements = container.querySelectorAll(".prose > *");
+      contentElements.forEach((element) => {
+        if (element.querySelector("img[class*='float-']")) {
+          element.classList.add("clearfix");
         }
       });
     };
 
-    // Use MutationObserver to watch for DOM changes
-    const observer = new MutationObserver(updateImageStyles);
-    
-    if (editor.view.dom) {
-      observer.observe(editor.view.dom, {
-        childList: true,
-        subtree: true,
-        attributes: true
-      });
-      
-      // Initial styling
-      setTimeout(updateImageStyles, 100);
+    const observer = new MutationObserver(applyEnhancedStyles);
+    observer.observe(editorContainerRef.current, { 
+      childList: true, 
+      subtree: true, 
+      attributes: true,
+      attributeFilter: ["class", "style", "src", "width", "height"]
+    });
+
+    // Apply styles immediately and after content changes
+    const timeoutId = setTimeout(applyEnhancedStyles, 150);
+    const resizeObserver = new ResizeObserver(applyEnhancedStyles);
+    if (editorContainerRef.current) {
+      resizeObserver.observe(editorContainerRef.current);
     }
 
     return () => {
       observer.disconnect();
+      resizeObserver.disconnect();
+      clearTimeout(timeoutId);
     };
-  }, [editor, content]);
+  }, [editor]);
 
   if (!editor) {
     return (
-      <Box 
-        className={`prose max-w-none p-4 rounded-md ${showBorder ? 'border border-gray-200' : ''} ${className}`}
+      <Box
+        ref={editorContainerRef}
+        className={`prose max-w-none p-6 rounded-md ${showBorder ? "border border-gray-200" : ""} ${className}`}
         maxHeight={maxHeight}
         overflowY={maxHeight ? "auto" : "visible"}
+        bg={backgroundColor}
       >
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
           <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
         </div>
       </Box>
     );
   }
 
   return (
-    <Box 
-      className={`rich-text-view ${showBorder ? 'border border-gray-200' : ''} ${className}`}
+    <Box
+      ref={editorContainerRef}
+      className={`rich-text-view ${showBorder ? "border border-gray-200" : ""} ${className}`}
       maxHeight={maxHeight}
       overflowY={maxHeight ? "auto" : "visible"}
+      bg={backgroundColor}
       sx={{
-        // Custom styles for media elements
-        '& img': {
-          maxWidth: '100%',
-          height: 'auto',
-          transition: 'all 0.2s ease-in-out',
+        // Enhanced image styling
+        "& img": {
+          maxWidth: "100%",
+          height: "auto",
+          transition: "all 0.3s ease-in-out",
+          display: "block",
         },
-        '& img:hover': {
-          transform: 'scale(1.02)',
+        "& img:hover": {
+          transform: "scale(1.01)",
+          boxShadow: "0 8px 25px rgba(0, 0, 0, 0.15)",
         },
-        '& video, & audio': {
-          maxWidth: '100%',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          margin: '16px 0',
+        "& img.float-left": {
+          float: "left",
+          marginRight: "1rem",
+          marginBottom: "1rem",
+          marginTop: "0.5rem",
         },
-        '& .float-left': {
-          float: 'left',
-          marginRight: '16px',
-          marginBottom: '16px',
-          marginTop: '4px',
+        "& img.float-right": {
+          float: "right",
+          marginLeft: "1rem",
+          marginBottom: "1rem",
+          marginTop: "0.5rem",
         },
-        '& .float-right': {
-          float: 'right',
-          marginLeft: '16px',
-          marginBottom: '16px',
-          marginTop: '4px',
+        "& img.float-center": {
+          display: "block",
+          marginLeft: "auto",
+          marginRight: "auto",
         },
-        '& .float-center': {
-          display: 'block',
-          marginLeft: 'auto',
-          marginRight: 'auto',
-          marginBottom: '16px',
+        // Enhanced table styling
+        "& table": {
+          width: "100% !important",
+          tableLayout: "auto",
         },
-        // Clear floats after content
-        '& .prose > *': {
-          clear: 'both'
+        "& th, & td": {
+          wordWrap: "break-word",
+          overflowWrap: "break-word",
         },
-        '& .prose > p:after': {
+        // Clear floats
+        "& .clearfix::after": {
           content: '""',
-          display: 'table',
-          clear: 'both',
-        }
+          display: "table",
+          clear: "both",
+        },
+        "& .prose > *": {
+          clear: "both",
+        },
+        // Responsive design
+        "& .prose": {
+          maxWidth: "none",
+        },
+        // Mobile responsiveness
+        "@media (max-width: 768px)": {
+          "& .prose": {
+            fontSize: "0.875rem",
+            lineHeight: "1.5",
+          },
+          "& .prose h1": {
+            fontSize: "1.5rem",
+          },
+          "& .prose h2": {
+            fontSize: "1.25rem",
+          },
+          "& .prose h3": {
+            fontSize: "1.125rem",
+          },
+          "& table": {
+            fontSize: "0.75rem",
+          },
+          "& th, & td": {
+            padding: "0.5rem",
+          },
+          "& img.float-left, & img.float-right": {
+            float: "none",
+            margin: "1rem auto",
+            display: "block",
+          },
+        },
+        // Dark mode support
+        "& .prose-invert": {
+          "& h1, & h2, & h3": {
+            color: "white",
+          },
+          "& p, & li": {
+            color: "#d1d5db",
+          },
+          "& blockquote": {
+            backgroundColor: "#374151",
+            borderColor: "#60a5fa",
+          },
+          "& code": {
+            backgroundColor: "#4b5563",
+            color: "#e5e7eb",
+          },
+          "& pre": {
+            backgroundColor: "#1f2937",
+            color: "#f3f4f6",
+          },
+        },
       }}
     >
       <EditorContent editor={editor} />
-    </Box>
-  );
-}
-
-// Additional helper component for inline rich text display
-export function InlineRichTextView({ content, maxLines }: { 
-  content: JSONContent | string | null; 
-  maxLines?: number;
-}) {
-  return (
-    <Box
-      sx={{
-        display: '-webkit-box',
-        WebkitLineClamp: maxLines || 'unset',
-        WebkitBoxOrient: 'vertical',
-        overflow: 'hidden',
-        lineHeight: '1.5',
-        '& .prose': {
-          margin: '0',
-          padding: '0',
-          '& p': {
-            margin: '0'
-          },
-          '& img': {
-            display: 'none' // Hide images in inline view
-          },
-          '& table': {
-            display: 'none' // Hide tables in inline view
-          },
-          '& video, & audio': {
-            display: 'none' // Hide media in inline view
-          }
-        }
-      }}
-    >
-      <RichTextView 
-        content={content} 
-        showBorder={false}
-        className="inline-view"
-      />
-    </Box>
-  );
-}
-
-// Simple text-only version for quick previews
-export function TextPreview({ content, maxLength }: {
-  content: JSONContent | string | null;
-  maxLength?: number;
-}) {
-  const extractText = (content: JSONContent | string | null): string => {
-    if (!content) return '';
-    
-    if (typeof content === 'string') {
-      return content.replace(/<[^>]*>/g, ''); // Strip HTML tags
-    }
-    
-    if (content.type === 'doc' && Array.isArray(content.content)) {
-      const extractFromNodes = (nodes: any[]): string => {
-        return nodes.map(node => {
-          if (node.content) return extractFromNodes(node.content);
-          if (node.text) return node.text;
-          return '';
-        }).join(' ').trim();
-      };
-      
-      let text = extractFromNodes(content.content);
-      if (maxLength && text.length > maxLength) {
-        text = text.substring(0, maxLength) + '...';
-      }
-      return text;
-    }
-    
-    return '';
-  };
-
-  return (
-    <Box 
-      className="text-preview"
-      title={extractText(content)}
-      sx={{
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {extractText(content)}
     </Box>
   );
 }

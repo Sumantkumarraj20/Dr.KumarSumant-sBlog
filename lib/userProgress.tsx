@@ -10,7 +10,7 @@ export const recordProgress = async (
   if (!userId) return;
 
   const { error } = await supabase
-    .from("user_progress")
+    .from("user_srs_progress")
     .upsert(
       {
         user_id: userId,

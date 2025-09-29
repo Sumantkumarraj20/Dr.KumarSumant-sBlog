@@ -58,7 +58,7 @@ export async function fetchDueCards(userId: string, limit = 30) {
 
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
-    .from("user_progress")
+    .from("user_srs_progress")
     .select("*, quiz_questions(*)")
     .eq("user_id", userId)
     .lte("next_review", nowIso)
@@ -70,7 +70,7 @@ export async function fetchDueCards(userId: string, limit = 30) {
 
 /**
  * Record a review with given quality (0..5).
- * Creates or updates a user_progress row.
+ * Creates or updates a user_srs_progress row.
  * Returns the updated row.
  */
 export async function recordReview(
@@ -82,7 +82,7 @@ export async function recordReview(
 
   // get existing row (if any)
   const { data: existing, error: fetchErr } = await supabase
-    .from("user_progress")
+    .from("user_srs_progress")
     .select("*")
     .eq("user_id", userId)
     .eq("question_id", questionId)
@@ -129,7 +129,7 @@ export async function recordReview(
 
   if (rowId) {
     const { data, error } = await supabase
-      .from("user_progress")
+      .from("user_srs_progress")
       .update(payload)
       .eq("id", rowId)
       .select()
@@ -138,7 +138,7 @@ export async function recordReview(
   } else {
     // insert new row
     const { data, error } = await supabase
-      .from("user_progress")
+      .from("user_srs_progress")
       .insert(payload)
       .select()
       .single();

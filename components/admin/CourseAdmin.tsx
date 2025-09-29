@@ -1273,7 +1273,7 @@ export default function CoursesAdmin() {
 
           <FormControl mb={2}>
             <FormLabel>Content</FormLabel>
-            <SafeRichTextEditor
+            <RichTextEditor
               value={lessonContent}
               onChange={setLessonContent}
               placeholder="Write your lesson content here..."
@@ -1375,7 +1375,7 @@ export default function CoursesAdmin() {
                   <Box mt={3} borderTopWidth={1} pt={3}>
                     <FormControl mb={2}>
                       <FormLabel>Question Text</FormLabel>
-                      <SafeRichTextEditor
+                      <RichTextEditor
                         value={newQuestionText}
                         onChange={setNewQuestionText}
                         placeholder="Enter the question text..."
@@ -1413,7 +1413,7 @@ export default function CoursesAdmin() {
 
                     <FormControl mb={2}>
                       <FormLabel>Explanation</FormLabel>
-                      <SafeRichTextEditor
+                      <RichTextEditor
                         value={newExplanation}
                         onChange={setNewExplanation}
                         placeholder="Enter explanation for the correct answer..."
