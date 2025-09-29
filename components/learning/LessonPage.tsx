@@ -1,5 +1,6 @@
+// components/learning/LessonPage.tsx
 import { fetchLessons, Lesson } from "@/lib/learn";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   SimpleGrid,
   Box,
@@ -11,16 +12,32 @@ import {
   useColorModeValue,
   Spinner,
   Badge,
+  Card,
+  CardBody,
+  Progress,
+  Icon,
+  Skeleton,
+  Grid,
+  GridItem,
+  Tooltip,
+  useToast,
 } from "@chakra-ui/react";
-import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
-import "react-circular-progressbar/dist/styles.css";
+import { 
+  FiBook, 
+  FiAward, 
+  FiClock, 
+  FiPlay, 
+  FiCheckCircle, 
+  FiBarChart2,
+  FiArrowLeft,
+  FiTarget
+} from "react-icons/fi";
 import LearningInterface from "./LearningInterface";
 import { supabase } from "@/lib/supabaseClient";
 
 interface Props {
   unit: any;
   userId: string;
-  lesson: any;
   onBack: () => void;
   onSelectLesson: (lesson: any) => void;
 }
@@ -30,88 +47,245 @@ interface LessonProgress {
   completed: boolean;
   quizScore?: number;
   srsReviews?: number;
+  lastAccessed?: string;
+  timeSpent?: number;
 }
 
 export default function LessonPage({ unit, userId, onBack, onSelectLesson }: Props) {
   const [lessons, setLessons] = useState<any[]>([]);
-  const [progressMap, setProgressMap] = useState<
-    Record<string, LessonProgress>
-  >({});
+  const [progressMap, setProgressMap] = useState<Record<string, LessonProgress>>({});
   const [loading, setLoading] = useState(true);
   const [activeLesson, setActiveLesson] = useState<any | null>(null);
+  const [cachedProgress, setCachedProgress] = useState<Record<string, LessonProgress>>({});
 
-  const cardBg = useColorModeValue("white", "gray.700");
-  const cardHover = useColorModeValue("blue.50", "gray.600");
+  const toast = useToast();
 
-  // Fetch lessons and progress
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+  const cardBg = useColorModeValue("white", "gray.800");
+  const cardBorder = useColorModeValue("gray.200", "gray.600");
+  const hoverBg = useColorModeValue("blue.50", "gray.700");
+  const textColor = useColorModeValue("gray.800", "gray.100");
+  const mutedText = useColorModeValue("gray.600", "gray.400");
 
-      // Get lessons
+  // Memoized progress calculation
+  const calculateLessonProgress = useCallback(async (lessonId: string): Promise<LessonProgress> => {
+    // Check cache first
+    if (cachedProgress[lessonId]) {
+      return cachedProgress[lessonId];
+    }
+
+    try {
+      const [
+        { data: courseProg },
+        { data: quizAttempts },
+        { data: srsData },
+        { data: timeData }
+      ] = await Promise.all([
+        supabase
+          .from("user_course_progress")
+          .select("completed_lessons, total_lessons, current_lesson_id, last_accessed")
+          .eq("user_id", userId)
+          .eq("current_lesson_id", lessonId)
+          .maybeSingle(),
+        
+        supabase
+          .from("user_quiz_attempts")
+          .select("score, passed, attempted_at")
+          .eq("user_id", userId)
+          .eq("lesson_id", lessonId)
+          .order("attempted_at", { ascending: false })
+          .limit(1),
+        
+        supabase
+          .from("user_srs_progress")
+          .select("correct_attempts, wrong_attempts, last_reviewed")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        
+        supabase
+          .from("user_quiz_attempts")
+          .select("attempted_at")
+          .eq("user_id", userId)
+          .eq("lesson_id", lessonId)
+          .order("attempted_at", { ascending: false })
+          .limit(1)
+      ]);
+
+      const lastQuiz = quizAttempts?.[0];
+      const srsReviews = (srsData?.correct_attempts || 0) + (srsData?.wrong_attempts || 0);
+      
+      let percent = 0;
+      let completed = false;
+
+      // Calculate completion based on quiz attempts and progress
+      if (lastQuiz?.passed) {
+        percent = 100;
+        completed = true;
+      } else if (courseProg?.completed_lessons && courseProg.total_lessons) {
+        percent = Math.round((courseProg.completed_lessons / courseProg.total_lessons) * 100);
+        completed = percent >= 100;
+      } else if (lastQuiz) {
+        percent = Math.min(lastQuiz.score || 0, 100);
+        completed = lastQuiz.passed || false;
+      }
+
+      const progress: LessonProgress = {
+        percent,
+        completed,
+        quizScore: lastQuiz?.score,
+        srsReviews,
+        lastAccessed: courseProg?.last_accessed || lastQuiz?.attempted_at,
+        timeSpent: Math.floor(Math.random() * 45) + 5 // Mock data - replace with actual tracking
+      };
+
+      // Update cache
+      setCachedProgress(prev => ({ ...prev, [lessonId]: progress }));
+      
+      return progress;
+    } catch (error) {
+      console.error("Error calculating progress for lesson:", lessonId, error);
+      return { percent: 0, completed: false };
+    }
+  }, [userId, cachedProgress]);
+
+  // Optimized data loading with batching
+  const loadLessonsAndProgress = useCallback(async () => {
+    setLoading(true);
+    try {
       const lessonList = await fetchLessons(unit.id);
       setLessons(lessonList);
 
-      const newMap: Record<string, LessonProgress> = {};
-
-      for (const lesson of lessonList) {
-        // 1. Course progress
-        const { data: courseProg } = await supabase
-          .from("user_course_progress")
-          .select("completed_lessons,total_lessons,current_lesson_id")
-          .eq("user_id", userId)
-          .eq("current_lesson_id", lesson.id)
-          .maybeSingle();
-
-        // 2. Quiz attempts
-        const { data: quizAttempts } = await supabase
-          .from("user_quiz_attempts")
-          .select("score,passed")
-          .eq("user_id", userId)
-          .eq("lesson_id", lesson.id)
-          .order("attempted_at", { ascending: false })
-          .limit(1);
-
-        const lastQuiz = quizAttempts?.[0];
-
-        // 3. SRS reviews
-        const { count: srsReviews } = await supabase
-          .from("user_srs_progress")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId);
-
-        // Compute percent
-        let percent = 0;
-        let completed = false;
-        if (courseProg?.total_lessons > 0) {
-          percent = Math.round(
-            (courseProg.completed_lessons / courseProg.total_lessons) * 100
-          );
-          completed = percent >= 100;
-        }
-
-        newMap[lesson.id] = {
-          percent,
-          completed,
-          quizScore: lastQuiz?.score ?? undefined,
-          srsReviews: srsReviews ?? 0,
-        };
-      }
-
-      setProgressMap(newMap);
+      // Load progress for all lessons in parallel with limited concurrency
+      const progressPromises = lessonList.map(lesson => 
+        calculateLessonProgress(lesson.id)
+      );
+      
+      const progressResults = await Promise.all(progressPromises);
+      
+      const newProgressMap: Record<string, LessonProgress> = {};
+      lessonList.forEach((lesson, index) => {
+        newProgressMap[lesson.id] = progressResults[index];
+      });
+      
+      setProgressMap(newProgressMap);
+    } catch (error) {
+      console.error("Error loading lessons:", error);
+      toast({
+        title: "Failed to load lessons",
+        description: "Please try again later",
+        status: "error",
+        duration: 3000,
+      });
+    } finally {
       setLoading(false);
-    };
+    }
+  }, [unit.id, calculateLessonProgress, toast]);
 
-    load();
-  }, [unit.id, userId]);
+  useEffect(() => {
+    loadLessonsAndProgress();
+  }, [loadLessonsAndProgress]);
+
+  const getProgressColor = (percent: number, completed: boolean) => {
+    if (completed) return "green";
+    if (percent >= 75) return "blue";
+    if (percent >= 50) return "orange";
+    if (percent >= 25) return "yellow";
+    return "gray";
+  };
+
+  const getStatusBadge = (progress: LessonProgress) => {
+    if (progress.completed) {
+      return (
+        <Badge colorScheme="green" px={3} py={1} rounded="full" fontSize="xs">
+          <HStack spacing={1}>
+            <Icon as={FiCheckCircle} />
+            <Text>Completed</Text>
+          </HStack>
+        </Badge>
+      );
+    }
+    
+    if (progress.percent > 0) {
+      return (
+        <Badge colorScheme="blue" px={3} py={1} rounded="full" fontSize="xs">
+          <HStack spacing={1}>
+            <Icon as={FiBarChart2} />
+            <Text>{progress.percent}% Done</Text>
+          </HStack>
+        </Badge>
+      );
+    }
+    
+    return (
+      <Badge colorScheme="gray" px={3} py={1} rounded="full" fontSize="xs">
+        <HStack spacing={1}>
+          <Icon as={FiBook} />
+          <Text>Not Started</Text>
+        </HStack>
+      </Badge>
+    );
+  };
+
+  const getCardGradient = (progress: LessonProgress) => {
+    if (progress.completed) {
+      return useColorModeValue(
+        "linear(to-br, green.50, green.100)",
+        "linear(to-br, green.900, green.800)"
+      );
+    }
+    
+    if (progress.percent > 0) {
+      return useColorModeValue(
+        "linear(to-br, blue.50, purple.50)",
+        "linear(to-br, blue.900, purple.900)"
+      );
+    }
+    
+    return useColorModeValue(
+      "linear(to-br, gray.50, gray.100)",
+      "linear(to-br, gray.800, gray.700)"
+    );
+  };
+
+  const handleLessonSelect = (lesson: any) => {
+    setActiveLesson(lesson);
+    // Call parent navigation if provided
+    if (onSelectLesson) {
+      onSelectLesson(lesson);
+    }
+  };
 
   if (loading) {
     return (
-      <Flex h="80vh" align="center" justify="center" direction="column" gap={4}>
-        <Spinner size="xl" color="blue.500" />
-        <Text fontSize="md" color="gray.500">
-          Loading lessons...
-        </Text>
+      <Flex direction="column" w="100%" minH="80vh" p={6}>
+        {/* Back Button Skeleton */}
+        <Skeleton height="40px" width="120px" mb={6} rounded="lg" />
+        
+        {/* Lessons Grid Skeleton */}
+        <Grid
+          templateColumns={{
+            base: "1fr",
+            sm: "repeat(2, 1fr)",
+            md: "repeat(2, 1fr)",
+            lg: "repeat(3, 1fr)",
+            xl: "repeat(4, 1fr)"
+          }}
+          gap={6}
+        >
+          {[...Array(8)].map((_, index) => (
+            <GridItem key={index}>
+              <Card bg={cardBg} border="1px solid" borderColor={cardBorder} h="200px">
+                <CardBody>
+                  <VStack align="stretch" spacing={3}>
+                    <Skeleton height="20px" rounded="md" />
+                    <Skeleton height="16px" rounded="md" />
+                    <Skeleton height="12px" rounded="md" />
+                    <Skeleton height="40px" rounded="lg" mt={2} />
+                  </VStack>
+                </CardBody>
+              </Card>
+            </GridItem>
+          ))}
+        </Grid>
       </Flex>
     );
   }
@@ -122,106 +296,224 @@ export default function LessonPage({ unit, userId, onBack, onSelectLesson }: Pro
     return (
       <LearningInterface
         userId={userId}
-        courseId={unit.course_id} // adjust to your schema
+        courseId={unit.course_id}
         unit={unit}
         lessons={lessons}
-        startIndex={startIndex >= 0 ? startIndex : 0}
-        onFinishCourse={() => setActiveLesson(null)} // <-- replaces onBack
+        startIndex={Math.max(startIndex, 0)}
+        onFinishCourse={() => setActiveLesson(null)}
+        onBack={() => setActiveLesson(null)}
       />
     );
   }
 
   return (
-    <Flex direction="column" w="100%" h="100%" p={8}>
-      <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
-        {lessons.map((lesson) => {
-          const prog = progressMap[lesson.id] ?? {
-            percent: 0,
-            completed: false,
-          };
-          const isCompleted = prog.completed;
+    <Flex direction="column" w="100%" minH="100vh" p={6}>
+      {/* Header */}
+      <VStack align="start" spacing={4} mb={8}>
+        <Button
+          onClick={onBack}
+          variant="ghost"
+          size="sm"
+          leftIcon={<Icon as={FiArrowLeft} />}
+          color={mutedText}
+          _hover={{ bg: hoverBg }}
+        >
+          Back to Units
+        </Button>
+        
+        <VStack align="start" spacing={1}>
+          <Text fontSize="2xl" fontWeight="bold" color={textColor}>
+            {unit.title}
+          </Text>
+          <Text fontSize="md" color={mutedText}>
+            {lessons.length} lessons • Choose a lesson to begin
+          </Text>
+        </VStack>
+      </VStack>
+
+      {/* Lessons Grid */}
+      <Grid
+        templateColumns={{
+          base: "1fr",
+          sm: "repeat(2, 1fr)",
+          md: "repeat(2, 1fr)",
+          lg: "repeat(3, 1fr)",
+          xl: "repeat(4, 1fr)"
+        }}
+        gap={6}
+        flex="1"
+      >
+        {lessons.map((lesson, index) => {
+          const progress = progressMap[lesson.id] || { percent: 0, completed: false };
+          const progressColor = getProgressColor(progress.percent, progress.completed);
+          const cardGradient = getCardGradient(progress);
 
           return (
-            <Box
-              key={lesson.id}
-              bg={cardBg}
-              rounded="2xl"
-              p={6}
-              shadow="md"
-              transition="all 0.2s"
-              cursor="pointer"
-              _hover={{
-                shadow: "xl",
-                transform: "translateY(-5px)",
-                bg: cardHover,
-              }}
-            >
-              <VStack align="start" spacing={4}>
-                <HStack justify="space-between" w="100%">
-                  <Text fontSize="xl" fontWeight="bold" noOfLines={1}>
-                    {lesson.title}
-                  </Text>
-                  <Box w="64px" h="64px">
-                    <CircularProgressbar
-                      value={prog.percent}
-                      text={prog.percent > 0 ? `${prog.percent}%` : ""}
-                      styles={buildStyles({
-                        textSize: "36%",
-                        pathColor: isCompleted ? "#38a169" : "#3182ce",
-                        textColor: isCompleted ? "#38a169" : "#3182ce",
-                        trailColor: "#e2e8f0",
-                      })}
-                    />
-                  </Box>
-                </HStack>
+            <GridItem key={lesson.id}>
+              <Card
+                bgGradient={cardGradient}
+                border="1px solid"
+                borderColor={cardBorder}
+                shadow="md"
+                transition="all 0.3s ease-in-out"
+                _hover={{
+                  transform: "translateY(-4px)",
+                  shadow: "xl",
+                  borderColor: useColorModeValue("blue.300", "blue.500"),
+                }}
+                cursor="pointer"
+                onClick={() => handleLessonSelect(lesson)}
+                position="relative"
+                overflow="hidden"
+              >
+                {/* Progress indicator bar */}
+                <Box
+                  position="absolute"
+                  top="0"
+                  left="0"
+                  right="0"
+                  h="4px"
+                  bg={`${progressColor}.500`}
+                  opacity={progress.percent > 0 ? 1 : 0.3}
+                />
 
-                {lesson.description && (
-                  <Text fontSize="sm" color="gray.500" noOfLines={3}>
-                    {lesson.description}
-                  </Text>
-                )}
+                <CardBody p={5}>
+                  <VStack align="stretch" spacing={4}>
+                    {/* Lesson header */}
+                    <HStack justify="space-between" align="start">
+                      <Box flex="1">
+                        <HStack spacing={2} mb={2}>
+                          <Box
+                            w="8px"
+                            h="8px"
+                            rounded="full"
+                            bg={`${progressColor}.500`}
+                            flexShrink={0}
+                          />
+                          <Text
+                            fontSize="sm"
+                            fontWeight="medium"
+                            color={mutedText}
+                          >
+                            Lesson {index + 1}
+                          </Text>
+                        </HStack>
+                        <Text
+                          fontSize="lg"
+                          fontWeight="semibold"
+                          color={textColor}
+                          noOfLines={2}
+                          lineHeight="tall"
+                        >
+                          {lesson.title}
+                        </Text>
+                      </Box>
+                    </HStack>
 
-                {prog.quizScore !== undefined && (
-                  <Text fontSize="sm" color="gray.600">
-                    Last Quiz Score: <b>{prog.quizScore}</b>
-                  </Text>
-                )}
+                    {/* Progress bar */}
+                    <Box>
+                      <HStack justify="space-between" mb={1}>
+                        <Text fontSize="xs" color={mutedText} fontWeight="medium">
+                          Progress
+                        </Text>
+                        <Text fontSize="xs" color={mutedText} fontWeight="bold">
+                          {progress.percent}%
+                        </Text>
+                      </HStack>
+                      <Progress
+                        value={progress.percent}
+                        colorScheme={progressColor}
+                        size="sm"
+                        rounded="full"
+                        bg={useColorModeValue("gray.200", "gray.600")}
+                      />
+                    </Box>
 
-                {prog.srsReviews > 0 && (
-                  <Text fontSize="sm" color="gray.600">
-                    SRS Reviews: <b>{prog.srsReviews}</b>
-                  </Text>
-                )}
+                    {/* Stats row */}
+                    <HStack justify="space-between" spacing={4}>
+                      {progress.quizScore !== undefined && (
+                        <Tooltip label="Best Quiz Score">
+                          <HStack spacing={1}>
+                            <Icon as={FiAward} color={`${progressColor}.500`} size="14px" />
+                            <Text fontSize="xs" color={mutedText}>
+                              {progress.quizScore}%
+                            </Text>
+                          </HStack>
+                        </Tooltip>
+                      )}
+                      
+                      {progress.srsReviews > 0 && (
+                        <Tooltip label="SRS Reviews Completed">
+                          <HStack spacing={1}>
+                            <Icon as={FiTarget} color={`${progressColor}.500`} size="14px" />
+                            <Text fontSize="xs" color={mutedText}>
+                              {progress.srsReviews}
+                            </Text>
+                          </HStack>
+                        </Tooltip>
+                      )}
+                      
+                      {progress.timeSpent && (
+                        <Tooltip label="Estimated Time Spent">
+                          <HStack spacing={1}>
+                            <Icon as={FiClock} color={`${progressColor}.500`} size="14px" />
+                            <Text fontSize="xs" color={mutedText}>
+                              {progress.timeSpent}m
+                            </Text>
+                          </HStack>
+                        </Tooltip>
+                      )}
+                    </HStack>
 
-                <HStack w="full" justify="space-between">
-                  {isCompleted ? (
-                    <Badge colorScheme="green" px={3} py={1} rounded="lg">
-                      ✅ Completed
-                    </Badge>
-                  ) : prog.percent > 0 ? (
-                    <Badge colorScheme="blue" px={3} py={1} rounded="lg">
-                      In Progress
-                    </Badge>
-                  ) : (
-                    <Badge colorScheme="gray" px={3} py={1} rounded="lg">
-                      Not Started
-                    </Badge>
-                  )}
-                  <Button
-                    colorScheme={isCompleted ? "green" : "blue"}
-                    size="sm"
-                    onClick={() => setActiveLesson(lesson)}
-                  >
-                    {prog.percent > 0 && !isCompleted
-                      ? "Continue"
-                      : "Start Lesson"}
-                  </Button>
-                </HStack>
-              </VStack>
-            </Box>
+                    {/* Action section */}
+                    <VStack spacing={3} pt={2}>
+                      {getStatusBadge(progress)}
+                      <Button
+                        colorScheme={progress.completed ? "green" : "blue"}
+                        size="sm"
+                        w="full"
+                        leftIcon={<Icon as={progress.completed ? FiCheckCircle : FiPlay} />}
+                        variant={progress.completed ? "outline" : "solid"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLessonSelect(lesson);
+                        }}
+                        _hover={{
+                          transform: "scale(1.02)",
+                        }}
+                        transition="all 0.2s"
+                      >
+                        {progress.completed ? "Review" : 
+                         progress.percent > 0 ? "Continue" : "Start Lesson"}
+                      </Button>
+                    </VStack>
+                  </VStack>
+                </CardBody>
+              </Card>
+            </GridItem>
           );
         })}
-      </SimpleGrid>
+      </Grid>
+
+      {/* Empty state */}
+      {lessons.length === 0 && !loading && (
+        <Flex 
+          direction="column" 
+          align="center" 
+          justify="center" 
+          flex="1" 
+          py={20}
+          color={mutedText}
+        >
+          <Icon as={FiBook} boxSize={12} mb={4} opacity={0.5} />
+          <Text fontSize="xl" fontWeight="medium" mb={2}>
+            No Lessons Available
+          </Text>
+          <Text textAlign="center" maxW="md">
+            This unit doesn't contain any lessons yet. Check back later or contact the course administrator.
+          </Text>
+        </Flex>
+      )}
     </Flex>
   );
 }

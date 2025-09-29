@@ -23,7 +23,6 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import BulletList from "@tiptap/extension-bullet-list";
 import OrderedList from "@tiptap/extension-ordered-list";
 import ListItem from "@tiptap/extension-list-item";
-import History from "@tiptap/extension-history";
 import Dropcursor from "@tiptap/extension-dropcursor";
 import Gapcursor from "@tiptap/extension-gapcursor";
 
@@ -167,11 +166,6 @@ export default function RichTextEditor({
             class: "border-l-4 border-blue-500 pl-4 italic bg-blue-50 py-2 my-4",
           },
         },
-      }),
-      // History as separate extension
-      History.configure({
-        depth: 100,
-        newGroupDelay: 500,
       }),
       Dropcursor.configure({ width: 2, color: "#3B82F6" }),
       Gapcursor,
