@@ -12,7 +12,6 @@
     "@chakra-ui/react": "^2.10.9",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@headlessui/react": "^2.2.8",
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "2.57.4",
     "@tiptap/extension-bullet-list": "^3.6.1",

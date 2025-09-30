@@ -56,12 +56,14 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  Textarea,
   Badge,
   Flex,
+  useColorModeValue,
+  Divider,
+  useBreakpointValue,
 } from "@chakra-ui/react";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 
 import {
@@ -91,6 +93,7 @@ import {
   FaHighlighter,
   FaTasks,
   FaEraser,
+  FaCopy,
   FaSave,
 } from "react-icons/fa";
 
@@ -100,14 +103,18 @@ interface RichTextEditorProps {
   placeholder?: string;
   autoFocus?: boolean;
   minHeight?: string;
+  maxHeight?: string;
+  readOnly?: boolean;
 }
 
 export default function RichTextEditor({
   value,
   onChange,
-  placeholder = "Start typing...",
+  placeholder = "Start writing your content...",
   autoFocus = false,
   minHeight = "400px",
+  maxHeight = "none",
+  readOnly = false,
 }: RichTextEditorProps) {
   const [mounted, setMounted] = useState(false);
   const [textColor, setTextColor] = useState("#000000");
@@ -115,13 +122,27 @@ export default function RichTextEditor({
   const [imageSize, setImageSize] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [wordCount, setWordCount] = useState(0);
-  const { isOpen: isLinkModalOpen, onOpen: onLinkModalOpen, onClose: onLinkModalClose } =
-    useDisclosure();
+  const { isOpen: isLinkModalOpen, onOpen: onLinkModalOpen, onClose: onLinkModalClose } = useDisclosure();
   const [linkData, setLinkData] = useState<{ url: string; text?: string }>({ url: "", text: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
-  // --- Extend Image node so it accepts custom attrs (class, style, data-uploading, data-id)
+  // Chakra UI color values for consistent theming
+  const bgCard = useColorModeValue("white", "gray.800");
+  const bgToolbar = useColorModeValue("gray.50", "gray.700");
+  const borderColor = useColorModeValue("gray.200", "gray.600");
+  const focusBorderColor = useColorModeValue("blue.500", "blue.300");
+  const textPrimary = useColorModeValue("gray.900", "white");
+  const textSecondary = useColorModeValue("gray.600", "gray.400");
+  const hoverBg = useColorModeValue("gray.100", "gray.600");
+  const activeBg = useColorModeValue("blue.50", "blue.900");
+  const activeColor = useColorModeValue("blue.600", "blue.300");
+
+  // Responsive toolbar
+  const toolbarDirection = useBreakpointValue<"row" | "column">({ base: "column", md: "row" });
+  const toolbarSpacing = useBreakpointValue({ base: 2, md: 1 });
+
+  // Custom Image extension with enhanced attributes
   const CustomImage = Image.extend({
     addAttributes() {
       return {
@@ -150,26 +171,24 @@ export default function RichTextEditor({
     },
   });
 
-  // --- Editor init (StarterKit minimal config; lists/history configured separately)
+  // Editor configuration
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // Only include nodes that StarterKit accepts here. Do not try to configure list nodes here.
         heading: { levels: [1, 2, 3] as const },
         codeBlock: {
           HTMLAttributes: {
-            class: "font-mono bg-gray-100 p-4 rounded border border-gray-300 my-4",
+            class: "font-mono bg-gray-100 dark:bg-gray-800 p-4 rounded border border-gray-300 dark:border-gray-600 my-4",
           },
         },
         blockquote: {
           HTMLAttributes: {
-            class: "border-l-4 border-blue-500 pl-4 italic bg-blue-50 py-2 my-4",
+            class: "border-l-4 border-blue-500 pl-4 italic bg-blue-50 dark:bg-blue-900/20 py-2 my-4",
           },
         },
       }),
       Dropcursor.configure({ width: 2, color: "#3B82F6" }),
       Gapcursor,
-      // lists included individually (avoid trying to toggle StarterKit internals)
       BulletList.configure({
         HTMLAttributes: { class: "list-disc pl-6 my-4 space-y-2" },
       }),
@@ -180,7 +199,7 @@ export default function RichTextEditor({
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: "text-blue-600 underline hover:text-blue-800 transition-colors",
+          class: "text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors",
           target: "_blank",
           rel: "noopener noreferrer",
         },
@@ -195,7 +214,10 @@ export default function RichTextEditor({
       TableRow,
       TableHeader,
       TableCell,
-      TextAlign.configure({ types: ["heading", "paragraph", "image"], alignments: ["left", "center", "right", "justify"] }),
+      TextAlign.configure({ 
+        types: ["heading", "paragraph", "image"], 
+        alignments: ["left", "center", "right", "justify"] 
+      }),
       Underline,
       Highlight.configure({ multicolor: true }),
       Color.configure({ types: ["textStyle"] }),
@@ -203,27 +225,30 @@ export default function RichTextEditor({
       Typography,
       TaskList,
       TaskItem.configure({ nested: true }),
-      Focus.configure({ mode: "deepest", className: "has-focus ring-2 ring-blue-500 rounded px-1" }),
+      Focus.configure({ 
+        mode: "deepest", 
+        className: "has-focus ring-2 ring-blue-500 rounded px-1" 
+      }),
       CharacterCount,
       Placeholder.configure({ placeholder }),
     ],
     content: value || { type: "doc", content: [{ type: "paragraph" }] },
     editorProps: {
       attributes: {
-        class: `prose prose-lg max-w-none outline-none p-6 rounded-md focus:outline-none bg-white ${isFullscreen ? "min-h-screen" : "min-h-[400px]"}`,
+        class: `prose prose-lg max-w-none outline-none p-6 rounded-md focus:outline-none bg-white dark:bg-gray-800 ${
+          isFullscreen ? "min-h-screen" : "min-h-[400px]"
+        } dark:prose-invert prose-headings:font-bold prose-p:leading-relaxed`,
         spellCheck: "true",
         autoCorrect: "on",
         autoCapitalize: "on",
         "data-gramm": "false",
       },
-      // robust paste handler (no deprecated sliceFromHTML)
-      handlePaste(view, event) {
+      handlePaste: (view, event) => {
         const html = event.clipboardData?.getData("text/html");
         const text = event.clipboardData?.getData("text/plain");
 
         if (html) {
           event.preventDefault();
-          // Clean up HTML (strip inline styles/classes/ids) and insert text content
           const tmp = document.createElement("div");
           tmp.innerHTML = html;
           tmp.querySelectorAll("*").forEach((el) => {
@@ -244,15 +269,12 @@ export default function RichTextEditor({
 
         return false;
       },
-
-      // handle file drops (images)
-      handleDrop(view, event, slice, moved) {
+      handleDrop: (view, event, slice, moved) => {
         if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
           event.preventDefault();
           const files = Array.from(event.dataTransfer.files);
           files.forEach(async (file) => {
             if (file.type.startsWith("image/")) {
-              // delegate to upload handler defined later (uses editor variable)
               await handleImageUpload(file);
             }
           });
@@ -262,9 +284,8 @@ export default function RichTextEditor({
       },
     },
     autofocus: autoFocus,
-    editable: true,
+    editable: !readOnly,
     injectCSS: false,
-    // For SSR/hydration safety
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
       const content = editor.getJSON();
@@ -274,36 +295,35 @@ export default function RichTextEditor({
     },
   });
 
-  // SSR mount guard
+  // Mount guard for SSR
   useEffect(() => setMounted(true), []);
 
-  // sync content (use options object, not boolean)
+  // Sync content
   useEffect(() => {
     if (!editor || !mounted) return;
     const current = JSON.stringify(editor.getJSON());
     const incoming = JSON.stringify(value);
     if (current !== incoming && incoming !== "null" && incoming !== '""') {
-      // use emitUpdate:false to avoid echoing back to parent
-      // TipTap types sometimes strict — cast to any to satisfy TS if needed
       try {
-        editor.commands.setContent(value || { type: "doc", content: [{ type: "paragraph" }] }, { emitUpdate: false } as any);
+        editor.commands.setContent(value || { type: "doc", content: [{ type: "paragraph" }] }, { 
+          emitUpdate: false 
+        } as any);
       } catch {
-        // fallback: setContent without options
         editor.commands.setContent(value || { type: "doc", content: [{ type: "paragraph" }] });
       }
     }
   }, [editor, mounted, value]);
 
-  // --- Image upload logic (placeholder → upload → replace)
-  const handleImageUpload = async (file: File): Promise<void> => {
+  // Image upload handler
+  const handleImageUpload = useCallback(async (file: File): Promise<void> => {
     if (!editor) return;
+    
     try {
       const placeholderId = `ph-${Date.now()}`;
 
-      // Insert placeholder image. We cast to any because setImage options type doesn't include our custom data-* attrs.
+      // Insert placeholder
       (editor.chain().focus() as any).setImage({
-        src:
-          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='14' fill='%236b7280'%3EUploading...%3C/text%3E%3C/svg%3E",
+        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='14' fill='%236b7280'%3EUploading...%3C/text%3E%3C/svg%3E",
         "data-uploading": "true",
         "data-id": placeholderId,
         class: `rounded-lg border-2 border-dashed border-gray-300 mx-auto my-4 max-w-[${imageSize}%] h-auto opacity-60`,
@@ -312,7 +332,7 @@ export default function RichTextEditor({
       const url = await uploadToCloudinary(file, "images");
       if (!url) throw new Error("Upload failed");
 
-      // Replace placeholder with real URL by scanning doc
+      // Replace placeholder
       const tr = editor.state.tr;
       editor.state.doc.descendants((node, pos) => {
         if (node.type.name === "image" && node.attrs["data-id"] === placeholderId) {
@@ -329,14 +349,14 @@ export default function RichTextEditor({
       editor.view.dispatch(tr);
 
       toast({
-        title: "Image uploaded",
+        title: "Image uploaded successfully",
         status: "success",
         duration: 2000,
         isClosable: true,
       });
     } catch (err) {
       console.error("Upload error", err);
-      // remove any placeholders with data-uploading === "true"
+      // Remove failed upload placeholders
       const tr = editor.state.tr;
       editor.state.doc.descendants((node, pos) => {
         if (node.type.name === "image" && node.attrs["data-uploading"] === "true") {
@@ -347,29 +367,32 @@ export default function RichTextEditor({
 
       toast({
         title: "Upload failed",
-        description: "Please try again with a smaller image.",
+        description: "Please try again with a smaller image or different format.",
         status: "error",
         duration: 3000,
         isClosable: true,
       });
     }
-  };
+  }, [editor, imageSize, toast]);
 
-  // Helper triggers
+  // Helper functions
   const triggerImageUpload = () => fileInputRef.current?.click();
-  const handleImageSizeChange = (size: number) => {
+  
+  const handleImageSizeChange = useCallback((size: number) => {
     setImageSize(size);
     if (!editor) return;
     const tr = editor.state.tr;
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === "image") {
-        tr.setNodeMarkup(pos, undefined, { ...node.attrs, class: `rounded-lg shadow-md mx-auto my-4 max-w-[${size}%] h-auto` });
+        tr.setNodeMarkup(pos, undefined, { 
+          ...node.attrs, 
+          class: `rounded-lg shadow-md mx-auto my-4 max-w-[${size}%] h-auto` 
+        });
       }
     });
     editor.view.dispatch(tr);
-  };
+  }, [editor]);
 
-  // Insert link modal helpers
   const handleInsertLink = () => {
     if (!editor) return;
     const sel = editor.state.selection;
@@ -377,6 +400,7 @@ export default function RichTextEditor({
     setLinkData({ url: "", text: text || "" });
     onLinkModalOpen();
   };
+
   const confirmLinkInsertion = () => {
     if (!linkData.url || !editor) return;
     if (linkData.text) {
@@ -387,164 +411,544 @@ export default function RichTextEditor({
     setLinkData({ url: "", text: "" });
     onLinkModalClose();
   };
+
   const removeLink = () => {
     editor?.chain().focus().unsetLink().run();
     onLinkModalClose();
   };
 
   const clearFormatting = () => editor?.chain().focus().clearNodes().unsetAllMarks().run();
+  
   const copyAsHTML = async () => {
     if (!editor) return;
     await navigator.clipboard.writeText(editor.getHTML());
-    toast({ title: "Copied HTML", status: "success", duration: 1500 });
+    toast({ 
+      title: "HTML copied to clipboard", 
+      status: "success", 
+      duration: 1500,
+      position: "top-right",
+    });
   };
 
-  // Keyboard shortcuts (Ctrl+B / I / K / Z)
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && editor) {
-        if (e.key.toLowerCase() === "b") { e.preventDefault(); editor.chain().focus().toggleBold().run(); }
-        if (e.key.toLowerCase() === "i") { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }
-        if (e.key.toLowerCase() === "k") { e.preventDefault(); handleInsertLink(); }
-        if (e.key.toLowerCase() === "z") {
-          e.preventDefault();
-          if (e.shiftKey) editor.chain().focus().redo().run();
-          else editor.chain().focus().undo().run();
+      if ((e.ctrlKey || e.metaKey) && editor && !readOnly) {
+        switch (e.key.toLowerCase()) {
+          case 'b':
+            e.preventDefault();
+            editor.chain().focus().toggleBold().run();
+            break;
+          case 'i':
+            e.preventDefault();
+            editor.chain().focus().toggleItalic().run();
+            break;
+          case 'k':
+            e.preventDefault();
+            handleInsertLink();
+            break;
+          case 'z':
+            e.preventDefault();
+            if (e.shiftKey) editor.chain().focus().redo().run();
+            else editor.chain().focus().undo().run();
+            break;
+          case 's':
+            e.preventDefault();
+            copyAsHTML();
+            break;
         }
       }
     };
+    
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [editor]);
+  }, [editor, readOnly]);
 
+  // Type safety for heading levels
+  type HeadingLevel = 1 | 2 | 3;
+  const toHeadingLevel = (n: number): HeadingLevel => {
+    if (n < 1) return 1;
+    if (n > 3) return 3;
+    return n as HeadingLevel;
+  };
+
+  // Loading states
   if (!mounted) {
     return (
-      <Box borderWidth={1} borderRadius="md" p={4} minH={minHeight} bg="gray.50" display="flex" alignItems="center" justifyContent="center">
-        <Text color="gray.600">Loading editor...</Text>
+      <Box 
+        borderWidth={1} 
+        borderRadius="lg" 
+        p={4} 
+        minH={minHeight} 
+        bg={bgCard}
+        borderColor={borderColor}
+        display="flex" 
+        alignItems="center" 
+        justifyContent="center"
+      >
+        <Text color={textSecondary}>Loading editor...</Text>
       </Box>
     );
   }
 
   if (!editor) {
     return (
-      <Box borderWidth={1} borderRadius="md" p={4} minH={minHeight} bg="red.50" display="flex" alignItems="center" justifyContent="center">
+      <Box 
+        borderWidth={1} 
+        borderRadius="lg" 
+        p={4} 
+        minH={minHeight} 
+        bg="red.50"
+        borderColor="red.200"
+        display="flex" 
+        alignItems="center" 
+        justifyContent="center"
+      >
         <Text color="red.600">Failed to load editor. Please refresh the page.</Text>
       </Box>
     );
   }
 
-type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
-
-function toHeadingLevel(n: number): HeadingLevel {
-  if (n < 1) return 1;
-  if (n > 6) return 6;
-  return n as HeadingLevel;
-}
-
   return (
-    <Box borderWidth={1} borderRadius="lg" p={4} w="100%" bg="white" shadow="sm" className={isFullscreen ? "fixed inset-0 z-50 bg-white p-6" : "relative"}>
-      <input type="file" ref={fileInputRef} accept="image/*" style={{ display: "none" }} onChange={(e) => {
-        const f = e.target.files?.[0];
-        if (f) handleImageUpload(f);
-        e.currentTarget.value = "";
-      }} />
+    <Box 
+      borderWidth={1} 
+      borderRadius="lg" 
+      p={4} 
+      w="100%" 
+      bg={bgCard}
+      borderColor={borderColor}
+      shadow="sm"
+      className={isFullscreen ? "fixed inset-0 z-50 p-6" : "relative"}
+      position={isFullscreen ? "fixed" : "relative"}
+    >
+      {/* Hidden file input */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        accept="image/*" 
+        style={{ display: "none" }} 
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleImageUpload(file);
+          e.currentTarget.value = "";
+        }} 
+      />
 
+      {/* Header with stats and actions */}
       <VStack spacing={3} align="stretch" mb={4}>
         <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
           <HStack spacing={2}>
-            <Badge colorScheme="blue" variant="subtle">{wordCount} words</Badge>
-            <Badge colorScheme="green" variant="subtle">{editor.storage.characterCount?.characters() || 0} chars</Badge>
+            <Badge colorScheme="blue" variant="subtle">
+              {wordCount} words
+            </Badge>
+            <Badge colorScheme="green" variant="subtle">
+              {editor.storage.characterCount?.characters() || 0} chars
+            </Badge>
+            {readOnly && (
+              <Badge colorScheme="gray" variant="subtle">
+                Read Only
+              </Badge>
+            )}
           </HStack>
+          
           <HStack spacing={1}>
-            <Tooltip label="Copy as HTML"><IconButton size="sm" icon={<FaSave />} onClick={copyAsHTML} aria-label="Copy as HTML" variant="ghost" /></Tooltip>
-            <Tooltip label={isFullscreen ? "Exit" : "Fullscreen"}><IconButton size="sm" icon={isFullscreen ? <FaCompress /> : <FaExpand />} onClick={() => setIsFullscreen(!isFullscreen)} aria-label="Toggle fullscreen" variant="ghost" /></Tooltip>
+            <Tooltip label="Copy as HTML">
+              <IconButton
+                size="sm"
+                icon={<FaCopy />}
+                onClick={copyAsHTML}
+                aria-label="Copy as HTML"
+                variant="ghost"
+                colorScheme="blue"
+              />
+            </Tooltip>
+            <Tooltip label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+              <IconButton
+                size="sm"
+                icon={isFullscreen ? <FaCompress /> : <FaExpand />}
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                aria-label="Toggle fullscreen"
+                variant="ghost"
+                colorScheme="blue"
+              />
+            </Tooltip>
           </HStack>
         </Flex>
 
-        {/* Toolbars - shortened for brevity (same structure as your original toolbars) */}
-        <Box borderWidth={1} borderRadius="md" p={2} bg="gray.50">
-          <HStack spacing={1} wrap="wrap" mb={2}>
-            <Tooltip label="Bold (Ctrl+B)"><IconButton size="sm" icon={<FaBold />} onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive("bold")} aria-label="Bold" /></Tooltip>
-            <Tooltip label="Italic (Ctrl+I)"><IconButton size="sm" icon={<FaItalic />} onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive("italic")} aria-label="Italic" /></Tooltip>
-            <Tooltip label="Underline"><IconButton size="sm" icon={<FaUnderline />} onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive("underline")} aria-label="Underline" /></Tooltip>
-            <Tooltip label="Strikethrough"><IconButton size="sm" icon={<FaStrikethrough />} onClick={() => editor.chain().focus().toggleStrike().run()} isActive={editor.isActive("strike")} aria-label="Strike" /></Tooltip>
+        {/* Main Toolbar */}
+        {!readOnly && (
+          <Box 
+            borderWidth={1} 
+            borderRadius="md" 
+            p={3} 
+            bg={bgToolbar}
+            borderColor={borderColor}
+          >
+            {/* Text formatting row */}
+            <HStack spacing={toolbarSpacing} wrap="wrap" mb={3}>
+              <Tooltip label="Bold (Ctrl+B)">
+                <IconButton
+                  size="sm"
+                  icon={<FaBold />}
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  isActive={editor.isActive("bold")}
+                  aria-label="Bold"
+                  colorScheme={editor.isActive("bold") ? "blue" : "gray"}
+                  variant={editor.isActive("bold") ? "solid" : "ghost"}
+                />
+              </Tooltip>
+              
+              <Tooltip label="Italic (Ctrl+I)">
+                <IconButton
+                  size="sm"
+                  icon={<FaItalic />}
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  isActive={editor.isActive("italic")}
+                  aria-label="Italic"
+                  colorScheme={editor.isActive("italic") ? "blue" : "gray"}
+                  variant={editor.isActive("italic") ? "solid" : "ghost"}
+                />
+              </Tooltip>
+              
+              <Tooltip label="Underline">
+                <IconButton
+                  size="sm"
+                  icon={<FaUnderline />}
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                  isActive={editor.isActive("underline")}
+                  aria-label="Underline"
+                  colorScheme={editor.isActive("underline") ? "blue" : "gray"}
+                  variant={editor.isActive("underline") ? "solid" : "ghost"}
+                />
+              </Tooltip>
+              
+              <Tooltip label="Strikethrough">
+                <IconButton
+                  size="sm"
+                  icon={<FaStrikethrough />}
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                  isActive={editor.isActive("strike")}
+                  aria-label="Strikethrough"
+                  colorScheme={editor.isActive("strike") ? "blue" : "gray"}
+                  variant={editor.isActive("strike") ? "solid" : "ghost"}
+                />
+              </Tooltip>
 
-            <Popover>
-              <PopoverTrigger><IconButton size="sm" icon={<FaPalette />} aria-label="Text Color" /></PopoverTrigger>
-              <Portal><PopoverContent><PopoverBody><VStack spacing={3}><Input type="color" value={textColor} onChange={(e) => { setTextColor(e.target.value); editor.chain().focus().setColor(e.target.value).run(); }} /><Button size="sm" onClick={() => { setTextColor("#000000"); editor.chain().focus().setColor("#000000").run(); }}>Reset</Button></VStack></PopoverBody></PopoverContent></Portal>
-            </Popover>
-          </HStack>
+              {/* Text Color */}
+              <Popover>
+                <PopoverTrigger>
+                  <IconButton
+                    size="sm"
+                    icon={<FaPalette />}
+                    aria-label="Text Color"
+                    variant="ghost"
+                    colorScheme="gray"
+                  />
+                </PopoverTrigger>
+                <Portal>
+                  <PopoverContent>
+                    <PopoverBody>
+                      <VStack spacing={3}>
+                        <Text fontSize="sm" fontWeight="medium">Text Color</Text>
+                        <Input 
+                          type="color" 
+                          value={textColor} 
+                          onChange={(e) => { 
+                            setTextColor(e.target.value); 
+                            editor.chain().focus().setColor(e.target.value).run(); 
+                          }} 
+                        />
+                        <Button 
+                          size="sm" 
+                          onClick={() => { 
+                            setTextColor("#000000"); 
+                            editor.chain().focus().setColor("#000000").run(); 
+                          }}
+                          colorScheme="blue"
+                          variant="outline"
+                        >
+                          Reset to Black
+                        </Button>
+                      </VStack>
+                    </PopoverBody>
+                  </PopoverContent>
+                </Portal>
+              </Popover>
+            </HStack>
 
-          {/* Blocks & lists */}
-          <HStack spacing={1} wrap="wrap" mb={2}>
-            <Menu><MenuButton as={Button} size="sm" rightIcon={<FaChevronDown />}>Blocks</MenuButton>
-              <MenuList>
-                <MenuItem icon={<FaParagraph />} onClick={() => editor.chain().focus().setParagraph().run()}>Paragraph</MenuItem>
-                {[1,2,3].map((level) => <MenuItem key={level} icon={<FaHeading />} onClick={() => editor.chain().focus().toggleHeading({ level: toHeadingLevel(level) }).run()}>Heading {level}</MenuItem>)}
-                <MenuItem icon={<FaCode />} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>Code Block</MenuItem>
-                <MenuItem icon={<FaQuoteLeft />} onClick={() => editor.chain().focus().toggleBlockquote().run()}>Blockquote</MenuItem>
-              </MenuList>
-            </Menu>
+            <Divider my={2} />
 
-            <Tooltip label="Bullet List"><IconButton size="sm" icon={<FaListUl />} onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive("bulletList")} aria-label="Bullet List" /></Tooltip>
-            <Tooltip label="Numbered List"><IconButton size="sm" icon={<FaListOl />} onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive("orderedList")} aria-label="Numbered List" /></Tooltip>
-            <IconButton size="sm" icon={<FaEraser />} onClick={clearFormatting} aria-label="Clear formatting" />
-          </HStack>
+            {/* Blocks and lists row */}
+            <HStack spacing={toolbarSpacing} wrap="wrap" mb={3}>
+              <Menu>
+                <MenuButton 
+                  as={Button} 
+                  size="sm" 
+                  rightIcon={<FaChevronDown />}
+                  variant="ghost"
+                  colorScheme="gray"
+                >
+                  Blocks
+                </MenuButton>
+                <MenuList>
+                  <MenuItem 
+                    icon={<FaParagraph />} 
+                    onClick={() => editor.chain().focus().setParagraph().run()}
+                  >
+                    Paragraph
+                  </MenuItem>
+                  {[1, 2, 3].map((level) => (
+                    <MenuItem 
+                      key={level}
+                      icon={<FaHeading />} 
+                      onClick={() => editor.chain().focus().toggleHeading({ level: toHeadingLevel(level) }).run()}
+                    >
+                      Heading {level}
+                    </MenuItem>
+                  ))}
+                  <MenuItem 
+                    icon={<FaCode />} 
+                    onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                  >
+                    Code Block
+                  </MenuItem>
+                  <MenuItem 
+                    icon={<FaQuoteLeft />} 
+                    onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                  >
+                    Blockquote
+                  </MenuItem>
+                </MenuList>
+              </Menu>
 
-          {/* Align / media */}
-          <HStack spacing={1} wrap="wrap">
-            <IconButton size="sm" icon={<FaAlignLeft />} onClick={() => editor.chain().focus().setTextAlign("left").run()} aria-label="Align left" />
-            <IconButton size="sm" icon={<FaAlignCenter />} onClick={() => editor.chain().focus().setTextAlign("center").run()} aria-label="Align center" />
-            <IconButton size="sm" icon={<FaAlignRight />} onClick={() => editor.chain().focus().setTextAlign("right").run()} aria-label="Align right" />
+              <Tooltip label="Bullet List">
+                <IconButton
+                  size="sm"
+                  icon={<FaListUl />}
+                  onClick={() => editor.chain().focus().toggleBulletList().run()}
+                  isActive={editor.isActive("bulletList")}
+                  aria-label="Bullet List"
+                  colorScheme={editor.isActive("bulletList") ? "blue" : "gray"}
+                  variant={editor.isActive("bulletList") ? "solid" : "ghost"}
+                />
+              </Tooltip>
+              
+              <Tooltip label="Numbered List">
+                <IconButton
+                  size="sm"
+                  icon={<FaListOl />}
+                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                  isActive={editor.isActive("orderedList")}
+                  aria-label="Numbered List"
+                  colorScheme={editor.isActive("orderedList") ? "blue" : "gray"}
+                  variant={editor.isActive("orderedList") ? "solid" : "ghost"}
+                />
+              </Tooltip>
 
-            <Popover>
-              <PopoverTrigger><IconButton size="sm" icon={<FaImage />} aria-label="Insert image" /></PopoverTrigger>
-              <Portal>
-                <PopoverContent>
-                  <PopoverBody>
-                    <VStack spacing={3}>
-                      <Text fontSize="sm">Image Size: {imageSize}%</Text>
-                      <Slider value={imageSize} onChange={handleImageSizeChange} min={25} max={100} step={5}><SliderTrack><SliderFilledTrack /></SliderTrack><SliderThumb /></Slider>
-                      <Button size="sm" onClick={triggerImageUpload} w="full">Upload Image</Button>
-                    </VStack>
-                  </PopoverBody>
-                </PopoverContent>
-              </Portal>
-            </Popover>
+              <Tooltip label="Clear formatting">
+                <IconButton
+                  size="sm"
+                  icon={<FaEraser />}
+                  onClick={clearFormatting}
+                  aria-label="Clear formatting"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
+            </HStack>
 
-            <IconButton size="sm" icon={<FaLink />} onClick={handleInsertLink} aria-label="Insert link" />
-            <Menu><MenuButton as={Button} size="sm" rightIcon={<FaChevronDown />}>Table</MenuButton><MenuList><MenuItem icon={<FaTable />} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Insert Table</MenuItem></MenuList></Menu>
-          </HStack>
-        </Box>
+            <Divider my={2} />
+
+            {/* Alignment and media row */}
+            <HStack spacing={toolbarSpacing} wrap="wrap">
+              <Tooltip label="Align left">
+                <IconButton
+                  size="sm"
+                  icon={<FaAlignLeft />}
+                  onClick={() => editor.chain().focus().setTextAlign("left").run()}
+                  aria-label="Align left"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
+              
+              <Tooltip label="Align center">
+                <IconButton
+                  size="sm"
+                  icon={<FaAlignCenter />}
+                  onClick={() => editor.chain().focus().setTextAlign("center").run()}
+                  aria-label="Align center"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
+              
+              <Tooltip label="Align right">
+                <IconButton
+                  size="sm"
+                  icon={<FaAlignRight />}
+                  onClick={() => editor.chain().focus().setTextAlign("right").run()}
+                  aria-label="Align right"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
+
+              {/* Image upload */}
+              <Popover>
+                <PopoverTrigger>
+                  <IconButton
+                    size="sm"
+                    icon={<FaImage />}
+                    aria-label="Insert image"
+                    variant="ghost"
+                    colorScheme="gray"
+                  />
+                </PopoverTrigger>
+                <Portal>
+                  <PopoverContent>
+                    <PopoverBody>
+                      <VStack spacing={3}>
+                        <Text fontSize="sm" fontWeight="medium">Image Settings</Text>
+                        <Text fontSize="sm">Size: {imageSize}%</Text>
+                        <Slider 
+                          value={imageSize} 
+                          onChange={handleImageSizeChange} 
+                          min={25} 
+                          max={100} 
+                          step={5}
+                        >
+                          <SliderTrack>
+                            <SliderFilledTrack />
+                          </SliderTrack>
+                          <SliderThumb />
+                        </Slider>
+                        <Button 
+                          size="sm" 
+                          onClick={triggerImageUpload} 
+                          w="full"
+                          colorScheme="blue"
+                        >
+                          Upload Image
+                        </Button>
+                      </VStack>
+                    </PopoverBody>
+                  </PopoverContent>
+                </Portal>
+              </Popover>
+
+              <Tooltip label="Insert link (Ctrl+K)">
+                <IconButton
+                  size="sm"
+                  icon={<FaLink />}
+                  onClick={handleInsertLink}
+                  aria-label="Insert link"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
+
+              <Menu>
+                <MenuButton 
+                  as={Button} 
+                  size="sm" 
+                  rightIcon={<FaChevronDown />}
+                  variant="ghost"
+                  colorScheme="gray"
+                >
+                  Table
+                </MenuButton>
+                <MenuList>
+                  <MenuItem 
+                    icon={<FaTable />} 
+                    onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+                  >
+                    Insert Table
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+            </HStack>
+          </Box>
+        )}
       </VStack>
 
-      <Box borderWidth={1} borderRadius="md" minH={minHeight} p={4} bg="white" _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 2px var(--chakra-colors-blue-500)" }} transition="all 0.2s" className="rich-text-editor-content">
+      {/* Editor content area */}
+      <Box 
+        borderWidth={1} 
+        borderRadius="md" 
+        minH={minHeight}
+        maxH={isFullscreen ? "none" : maxHeight}
+        overflow="auto"
+        p={4} 
+        bg={bgCard}
+        borderColor={borderColor}
+        _focusWithin={{ 
+          borderColor: focusBorderColor, 
+          boxShadow: `0 0 0 1px ${focusBorderColor}` 
+        }}
+        transition="all 0.2s"
+        className="rich-text-editor-content"
+      >
         <EditorContent editor={editor} />
       </Box>
 
-      <Flex mt={2} justify="space-between" align="center" fontSize="sm" color="gray.600" wrap="wrap" gap={2}>
+      {/* Footer with additional stats */}
+      <Flex mt={3} justify="space-between" align="center" fontSize="sm" color={textSecondary} wrap="wrap" gap={2}>
         <HStack spacing={4}>
           <Text>{editor.storage.characterCount?.characters() || 0} characters</Text>
           <Text>{wordCount} words</Text>
+          <Text>{editor.storage.characterCount?.words() || 0} words (editor)</Text>
         </HStack>
-        <HStack spacing={2}><Badge variant="subtle" colorScheme="purple" cursor="help">Help</Badge></HStack>
+        
+        <HStack spacing={2}>
+          <Badge 
+            variant="subtle" 
+            colorScheme="purple" 
+            cursor="help"
+            title="Use Ctrl+B for bold, Ctrl+I for italic, Ctrl+K for links"
+          >
+            Keyboard Shortcuts
+          </Badge>
+        </HStack>
       </Flex>
 
+      {/* Link insertion modal */}
       <Modal isOpen={isLinkModalOpen} onClose={onLinkModalClose} size="md">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Insert Link</ModalHeader>
           <ModalBody>
             <VStack spacing={4}>
-              <Input placeholder="URL (https://...)" value={linkData.url} onChange={(e) => setLinkData({ ...linkData, url: e.target.value })} />
-              <Input placeholder="Link text (optional)" value={linkData.text} onChange={(e) => setLinkData({ ...linkData, text: e.target.value })} />
+              <Input 
+                placeholder="https://example.com" 
+                value={linkData.url}
+                onChange={(e) => setLinkData({ ...linkData, url: e.target.value })}
+                type="url"
+              />
+              <Input 
+                placeholder="Link text (optional)" 
+                value={linkData.text}
+                onChange={(e) => setLinkData({ ...linkData, text: e.target.value })}
+              />
             </VStack>
           </ModalBody>
           <ModalFooter>
             <HStack>
-              {editor?.isActive("link") && <Button colorScheme="red" variant="ghost" onClick={removeLink}>Remove Link</Button>}
-              <Button variant="ghost" onClick={onLinkModalClose}>Cancel</Button>
-              <Button colorScheme="blue" onClick={confirmLinkInsertion} isDisabled={!linkData.url}>Insert Link</Button>
+              {editor?.isActive("link") && (
+                <Button colorScheme="red" variant="ghost" onClick={removeLink}>
+                  Remove Link
+                </Button>
+              )}
+              <Button variant="ghost" onClick={onLinkModalClose}>
+                Cancel
+              </Button>
+              <Button 
+                colorScheme="blue" 
+                onClick={confirmLinkInsertion} 
+                isDisabled={!linkData.url}
+              >
+                Insert Link
+              </Button>
             </HStack>
           </ModalFooter>
         </ModalContent>

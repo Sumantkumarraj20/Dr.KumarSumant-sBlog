@@ -35,8 +35,10 @@ import {
 } from "@chakra-ui/react";
 import { BiSearchAlt, BiShow, BiShowAlt } from "react-icons/bi";
 import { FiMail, FiLock, FiUser, FiArrowRight } from "react-icons/fi";
+import { useRouter } from "next/router";
 
 export default function AuthPage() {
+  const router = useRouter()
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -159,6 +161,7 @@ export default function AuthPage() {
         isClosable: true,
         position: "top-right",
       });
+      router.push('/learn');
     } finally {
       setLoading(false);
     }

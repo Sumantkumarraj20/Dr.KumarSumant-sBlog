@@ -49,13 +49,14 @@ export function useRouteLoading() {
 }
 
 export default function GlobalLoader() {
-  const loading = useRouteLoading();
-  const bg = useColorModeValue("rgba(255,255,255,0.78)", "rgba(8,10,15,0.7)");
+ 
 
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
   const startRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
+   const loading = useRouteLoading();
+  const bg = useColorModeValue("rgba(255,255,255,0.78)", "rgba(8,10,15,0.7)");
 
   // start simulated progress
   const startProgress = () => {
