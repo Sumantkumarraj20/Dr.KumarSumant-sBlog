@@ -3,6 +3,7 @@ import { listPosts } from "../lib/posts";
 import PostCard from "../components/PostCard";
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { GetStaticProps } from 'next';
+import SEO from '@/components/Seo';
 import {
   Box,
   Button,
@@ -50,6 +51,8 @@ export default function Home({ posts, locale: pageLocale }: { posts: Post[]; loc
   ];
 
   return (
+    <>
+      <SEO />
     <Layout>
       <Box maxW="6xl" mx="auto" px={{ base: 4, md: 6 }} py={{ base: 10, md: 16 }}>
         {/* HERO */}
@@ -95,6 +98,7 @@ export default function Home({ posts, locale: pageLocale }: { posts: Post[]; loc
         </Box>
       </Box>
     </Layout>
+    </>
   );
 }
 
