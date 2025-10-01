@@ -12,7 +12,6 @@ import TableHeader from "@tiptap/extension-table-header";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import Underline from "@tiptap/extension-underline";
-import CharacterCount from "@tiptap/extension-character-count";
 import Focus from "@tiptap/extension-focus";
 import Typography from "@tiptap/extension-typography";
 import TaskList from "@tiptap/extension-task-list";
@@ -45,10 +44,6 @@ import {
   useToast,
   Portal,
   Button,
-  Slider,
-  SliderTrack,
-  SliderFilledTrack,
-  SliderThumb,
   useDisclosure,
   Modal,
   ModalOverlay,
@@ -56,15 +51,19 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  Badge,
   Flex,
   useColorModeValue,
   Divider,
-  useBreakpointValue,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
 } from "@chakra-ui/react";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { deleteFromCloudinary, getPublicIdFromUrl } from "@/lib/cloudinary";
 
 import {
   FaBold,
@@ -94,7 +93,9 @@ import {
   FaTasks,
   FaEraser,
   FaCopy,
-  FaSave,
+  FaTrash,
+  FaOutdent,
+  FaIndent,
 } from "react-icons/fa";
 
 interface RichTextEditorProps {
@@ -103,7 +104,6 @@ interface RichTextEditorProps {
   placeholder?: string;
   autoFocus?: boolean;
   minHeight?: string;
-  maxHeight?: string;
   readOnly?: boolean;
 }
 
@@ -113,17 +113,26 @@ export default function RichTextEditor({
   placeholder = "Start writing your content...",
   autoFocus = false,
   minHeight = "400px",
-  maxHeight = "none",
   readOnly = false,
 }: RichTextEditorProps) {
   const [mounted, setMounted] = useState(false);
-  const [textColor, setTextColor] = useState("#000000");
-  const [highlightColor, setHighlightColor] = useState("#FFEB3B");
-  const [imageSize, setImageSize] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [wordCount, setWordCount] = useState(0);
-  const { isOpen: isLinkModalOpen, onOpen: onLinkModalOpen, onClose: onLinkModalClose } = useDisclosure();
-  const [linkData, setLinkData] = useState<{ url: string; text?: string }>({ url: "", text: "" });
+  const {
+    isOpen: isLinkModalOpen,
+    onOpen: onLinkModalOpen,
+    onClose: onLinkModalClose,
+  } = useDisclosure();
+  const {
+    isOpen: isTableModalOpen,
+    onOpen: onTableModalOpen,
+    onClose: onTableModalClose,
+  } = useDisclosure();
+  const [linkData, setLinkData] = useState<{ url: string; text?: string }>({
+    url: "",
+    text: "",
+  });
+  const [tableData, setTableData] = useState({ rows: 3, cols: 3 });
+  const [uploadedImages, setUploadedImages] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
@@ -132,42 +141,64 @@ export default function RichTextEditor({
   const bgToolbar = useColorModeValue("gray.50", "gray.700");
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const focusBorderColor = useColorModeValue("blue.500", "blue.300");
-  const textPrimary = useColorModeValue("gray.900", "white");
   const textSecondary = useColorModeValue("gray.600", "gray.400");
-  const hoverBg = useColorModeValue("gray.100", "gray.600");
-  const activeBg = useColorModeValue("blue.50", "blue.900");
-  const activeColor = useColorModeValue("blue.600", "blue.300");
+  const tableBorderColor = useColorModeValue("gray.300", "gray.500");
 
-  // Responsive toolbar
-  const toolbarDirection = useBreakpointValue<"row" | "column">({ base: "column", md: "row" });
-  const toolbarSpacing = useBreakpointValue({ base: 2, md: 1 });
-
-  // Custom Image extension with enhanced attributes
+  // Custom Image extension with responsive sizing and custom attributes
   const CustomImage = Image.extend({
     addAttributes() {
       return {
         ...this.parent?.(),
-        class: {
+        alt: {
           default: null,
-          parseHTML: (el: any) => el.getAttribute("class"),
-          renderHTML: (attrs: any) => (attrs.class ? { class: attrs.class } : {}),
         },
-        style: {
+        title: {
           default: null,
-          parseHTML: (el: any) => el.getAttribute("style"),
-          renderHTML: (attrs: any) => (attrs.style ? { style: attrs.style } : {}),
         },
+        loading: {
+          default: "lazy",
+        },
+        // Custom attributes for upload state
         "data-uploading": {
           default: null,
-          parseHTML: (el: any) => el.getAttribute("data-uploading"),
-          renderHTML: (attrs: any) => (attrs["data-uploading"] ? { "data-uploading": attrs["data-uploading"] } : {}),
+          parseHTML: (element: any) => element.getAttribute("data-uploading"),
+          renderHTML: (attributes: any) => {
+            if (!attributes["data-uploading"]) return {};
+            return { "data-uploading": attributes["data-uploading"] };
+          },
         },
         "data-id": {
           default: null,
-          parseHTML: (el: any) => el.getAttribute("data-id"),
-          renderHTML: (attrs: any) => (attrs["data-id"] ? { "data-id": attrs["data-id"] } : {}),
+          parseHTML: (element: any) => element.getAttribute("data-id"),
+          renderHTML: (attributes: any) => {
+            if (!attributes["data-id"]) return {};
+            return { "data-id": attributes["data-id"] };
+          },
         },
       };
+    },
+  });
+
+  // Enhanced table extensions with better styling
+  const CustomTable = Table.configure({
+    HTMLAttributes: {
+      class: "rich-text-table",
+    },
+    resizable: true,
+  });
+
+  const CustomTableCell = TableCell.configure({
+    HTMLAttributes: {
+      class: "rich-text-table-cell",
+      style: "border: 1px solid; padding: 8px 12px; min-width: 100px;",
+    },
+  });
+
+  const CustomTableHeader = TableHeader.configure({
+    HTMLAttributes: {
+      class: "rich-text-table-header",
+      style:
+        "border: 1px solid; padding: 8px 12px; background: #f8f9fa; font-weight: bold;",
     },
   });
 
@@ -178,45 +209,54 @@ export default function RichTextEditor({
         heading: { levels: [1, 2, 3] as const },
         codeBlock: {
           HTMLAttributes: {
-            class: "font-mono bg-gray-100 dark:bg-gray-800 p-4 rounded border border-gray-300 dark:border-gray-600 my-4",
+            class:
+              "font-mono bg-gray-100 dark:bg-gray-800 p-4 rounded border border-gray-300 dark:border-gray-600 my-4",
           },
         },
         blockquote: {
           HTMLAttributes: {
-            class: "border-l-4 border-blue-500 pl-4 italic bg-blue-50 dark:bg-blue-900/20 py-2 my-4",
+            class:
+              "border-l-4 border-blue-500 pl-4 italic bg-blue-50 dark:bg-blue-900/20 py-2 my-4",
           },
         },
       }),
       Dropcursor.configure({ width: 2, color: "#3B82F6" }),
       Gapcursor,
       BulletList.configure({
-        HTMLAttributes: { class: "list-disc pl-6 my-4 space-y-2" },
+        HTMLAttributes: {
+          class: "list-disc pl-6 my-4 space-y-2 rich-text-list",
+        },
       }),
       OrderedList.configure({
-        HTMLAttributes: { class: "list-decimal pl-6 my-4 space-y-2" },
+        HTMLAttributes: {
+          class: "list-decimal pl-6 my-4 space-y-2 rich-text-list",
+        },
       }),
-      ListItem.configure({ HTMLAttributes: { class: "leading-relaxed" } }),
+      ListItem.configure({
+        HTMLAttributes: { class: "leading-relaxed rich-text-list-item" },
+      }),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: "text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors",
+          class:
+            "text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors",
           target: "_blank",
           rel: "noopener noreferrer",
         },
       }),
       CustomImage.configure({
         HTMLAttributes: {
-          class: "rich-text-image rounded-lg shadow-md mx-auto my-4 transition-all duration-200 cursor-pointer",
-          draggable: false,
+          class:
+            "rich-text-image rounded-lg my-4 cursor-pointer max-w-full h-auto",
         },
       }),
-      Table.configure({ resizable: true }),
+      CustomTable,
       TableRow,
-      TableHeader,
-      TableCell,
-      TextAlign.configure({ 
-        types: ["heading", "paragraph", "image"], 
-        alignments: ["left", "center", "right", "justify"] 
+      CustomTableHeader,
+      CustomTableCell,
+      TextAlign.configure({
+        types: ["heading", "paragraph", "image"],
+        alignments: ["left", "center", "right", "justify"],
       }),
       Underline,
       Highlight.configure({ multicolor: true }),
@@ -224,46 +264,66 @@ export default function RichTextEditor({
       TextStyle,
       Typography,
       TaskList,
-      TaskItem.configure({ nested: true }),
-      Focus.configure({ 
-        mode: "deepest", 
-        className: "has-focus ring-2 ring-blue-500 rounded px-1" 
+      TaskItem.configure({
+        nested: true,
+        HTMLAttributes: {
+          class: "rich-text-task-item",
+        },
       }),
-      CharacterCount,
+      Focus.configure({
+        mode: "deepest",
+        className: "has-focus ring-2 ring-blue-500 rounded px-1",
+      }),
       Placeholder.configure({ placeholder }),
     ],
     content: value || { type: "doc", content: [{ type: "paragraph" }] },
     editorProps: {
       attributes: {
-        class: `prose prose-lg max-w-none outline-none p-6 rounded-md focus:outline-none bg-white dark:bg-gray-800 ${
+        class: `prose prose-lg max-w-none outline-none p-4 rounded-md focus:outline-none bg-white dark:bg-gray-800 ${
           isFullscreen ? "min-h-screen" : "min-h-[400px]"
-        } dark:prose-invert prose-headings:font-bold prose-p:leading-relaxed`,
+        } dark:prose-invert prose-headings:font-bold prose-p:leading-relaxed prose-img:max-w-full prose-img:h-auto prose-img:rounded-lg prose-img:my-4 prose-table:w-full prose-td:border prose-th:border prose-td:p-2 prose-th:p-2 prose-td:border-gray-300 prose-th:border-gray-300 dark:prose-td:border-gray-500 dark:prose-th:border-gray-500 prose-th:bg-gray-100 dark:prose-th:bg-gray-700`,
         spellCheck: "true",
-        autoCorrect: "on",
-        autoCapitalize: "on",
         "data-gramm": "false",
       },
       handlePaste: (view, event) => {
-        const html = event.clipboardData?.getData("text/html");
-        const text = event.clipboardData?.getData("text/plain");
+        const items = event.clipboardData?.items;
 
+        // Handle image paste
+        if (items) {
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith("image/")) {
+              event.preventDefault();
+              const file = items[i].getAsFile();
+              if (file) {
+                handleImageUpload(file);
+              }
+              return true;
+            }
+          }
+        }
+
+        // Handle HTML paste with cleaning
+        const html = event.clipboardData?.getData("text/html");
         if (html) {
           event.preventDefault();
           const tmp = document.createElement("div");
           tmp.innerHTML = html;
+
+          // Clean up pasted content
           tmp.querySelectorAll("*").forEach((el) => {
             (el as HTMLElement).removeAttribute("style");
             (el as HTMLElement).removeAttribute("class");
             (el as HTMLElement).removeAttribute("id");
           });
-          const cleanedText = tmp.textContent || "";
-          view.dispatch(view.state.tr.insertText(cleanedText, view.state.selection.from, view.state.selection.to));
-          return true;
-        }
 
-        if (text) {
-          event.preventDefault();
-          view.dispatch(view.state.tr.insertText(text, view.state.selection.from, view.state.selection.to));
+          const cleanedText = tmp.textContent || "";
+          view.dispatch(
+            view.state.tr.insertText(
+              cleanedText,
+              view.state.selection.from,
+              view.state.selection.to
+            )
+          );
           return true;
         }
 
@@ -290,8 +350,6 @@ export default function RichTextEditor({
     onUpdate: ({ editor }) => {
       const content = editor.getJSON();
       onChange(content);
-      const text = editor.getText();
-      setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
     },
   });
 
@@ -305,93 +363,280 @@ export default function RichTextEditor({
     const incoming = JSON.stringify(value);
     if (current !== incoming && incoming !== "null" && incoming !== '""') {
       try {
-        editor.commands.setContent(value || { type: "doc", content: [{ type: "paragraph" }] }, { 
-          emitUpdate: false 
-        } as any);
+        editor.commands.setContent(
+          value || { type: "doc", content: [{ type: "paragraph" }] },
+          {
+            emitUpdate: false,
+          } as any
+        );
       } catch {
-        editor.commands.setContent(value || { type: "doc", content: [{ type: "paragraph" }] });
+        editor.commands.setContent(
+          value || { type: "doc", content: [{ type: "paragraph" }] }
+        );
       }
     }
   }, [editor, mounted, value]);
 
-  // Image upload handler
-  const handleImageUpload = useCallback(async (file: File): Promise<void> => {
-    if (!editor) return;
-    
-    try {
-      const placeholderId = `ph-${Date.now()}`;
+  // Image upload handler with automatic responsive sizing
+  // Enhanced image upload handler with tracking
+  const handleImageUpload = useCallback(
+    async (file: File): Promise<void> => {
+      if (!editor) return;
 
-      // Insert placeholder
-      (editor.chain().focus() as any).setImage({
-        src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='14' fill='%236b7280'%3EUploading...%3C/text%3E%3C/svg%3E",
-        "data-uploading": "true",
-        "data-id": placeholderId,
-        class: `rounded-lg border-2 border-dashed border-gray-300 mx-auto my-4 max-w-[${imageSize}%] h-auto opacity-60`,
-      } as any).run();
+      try {
+        const placeholderId = `upload-${Date.now()}`;
 
-      const url = await uploadToCloudinary(file, "images");
-      if (!url) throw new Error("Upload failed");
+        // Insert temporary placeholder
+        editor.commands.setImage({
+          src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='14' fill='%236b7280'%3EUploading...%3C/text%3E%3C/svg%3E",
+          alt: "Uploading...",
+        });
 
-      // Replace placeholder
-      const tr = editor.state.tr;
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name === "image" && node.attrs["data-id"] === placeholderId) {
-          const newAttrs = {
-            ...node.attrs,
-            src: url,
-            "data-uploading": null,
-            "data-id": null,
-            class: `rounded-lg shadow-md mx-auto my-4 max-w-[${imageSize}%] h-auto transition-all duration-200 hover:shadow-lg`,
-          };
-          tr.setNodeMarkup(pos, undefined, newAttrs);
+        setTimeout(() => {
+          const { state, dispatch } = editor.view;
+          const { doc } = state;
+
+          doc.descendants((node, pos) => {
+            if (
+              node.type.name === "image" &&
+              node.attrs.src.includes("data:image/svg+xml")
+            ) {
+              const tr = state.tr.setNodeMarkup(pos, undefined, {
+                ...node.attrs,
+                "data-uploading": "true",
+                "data-id": placeholderId,
+              });
+              dispatch(tr);
+            }
+          });
+        }, 100);
+
+        const url = await uploadToCloudinary(file, "images");
+        if (!url) throw new Error("Upload failed");
+
+        // Track uploaded image
+        setUploadedImages((prev) => new Set(prev).add(url));
+
+        // Replace placeholder with actual image
+        const { state, dispatch } = editor.view;
+        const { doc } = state;
+        let found = false;
+
+        doc.descendants((node, pos) => {
+          if (found) return;
+          if (
+            node.type.name === "image" &&
+            node.attrs["data-id"] === placeholderId
+          ) {
+            const tr = state.tr.setNodeMarkup(pos, undefined, {
+              src: url,
+              alt: file.name,
+              title: file.name,
+              "data-uploading": null,
+              "data-id": null,
+              "data-src": url, // Store original URL for deletion
+            });
+            dispatch(tr);
+            found = true;
+          }
+        });
+
+        toast({
+          title: "Image uploaded successfully",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      } catch (err) {
+        console.error("Upload error", err);
+
+        // Remove failed upload placeholder
+        if (editor) {
+          const { state, dispatch } = editor.view;
+          const { doc } = state;
+
+          doc.descendants((node, pos) => {
+            if (
+              node.type.name === "image" &&
+              node.attrs["data-uploading"] === "true"
+            ) {
+              dispatch(state.tr.delete(pos, pos + node.nodeSize));
+            }
+          });
         }
-      });
-      editor.view.dispatch(tr);
 
+        toast({
+          title: "Upload failed",
+          description:
+            "Please try again with a smaller image or different format.",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    },
+    [editor, toast]
+  );
+
+  // Enhanced image deletion with Cloudinary cleanup
+  const deleteImage = useCallback(
+    async (imageUrl: string) => {
+      if (!editor) return;
+
+      try {
+        // Extract public_id from Cloudinary URL for deletion
+        const publicId = getPublicIdFromUrl(imageUrl);
+
+        if (publicId) {
+          // Delete from Cloudinary (optional - you might want to keep images for backup)
+          try {
+            await deleteFromCloudinary(publicId);
+            console.log("Image deleted from Cloudinary:", publicId);
+          } catch (deleteError) {
+            console.warn(
+              "Failed to delete from Cloudinary, but continuing with editor cleanup:",
+              deleteError
+            );
+            // Continue even if Cloudinary deletion fails
+          }
+        }
+
+        // Remove from tracked images
+        setUploadedImages((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(imageUrl);
+          return newSet;
+        });
+
+        // Remove from editor using transaction
+        const { state, dispatch } = editor.view;
+        const { doc } = state;
+        let imageRemoved = false;
+
+        doc.descendants((node, pos) => {
+          if (imageRemoved) return;
+          if (node.type.name === "image" && node.attrs.src === imageUrl) {
+            // Select the image node first, then delete
+            const tr = state.tr.setSelection(state.selection);
+            tr.setSelection(state.selection);
+            tr.delete(pos, pos + node.nodeSize);
+            dispatch(tr);
+            imageRemoved = true;
+          }
+        });
+
+        // Fallback: if we couldn't find the specific image, delete selection
+        if (!imageRemoved && editor.state.selection.empty === false) {
+          editor.chain().focus().deleteSelection().run();
+        }
+
+        toast({
+          title: "Image deleted",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      } catch (err) {
+        console.error("Delete error", err);
+        toast({
+          title: "Failed to delete image",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    },
+    [editor, toast]
+  );
+
+  // Enhanced backspace/delete key handler for images
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (!editor) return;
+
+      const { state } = editor.view;
+      const { selection } = state;
+
+      // Check if we're about to delete an image
+      if (event.key === "Backspace" || event.key === "Delete") {
+        const { $from, $to } = selection;
+
+        // Check if selection contains an image
+        state.doc.nodesBetween($from.pos, $to.pos, (node, pos) => {
+          if (node.type.name === "image") {
+            const imageUrl = node.attrs.src;
+            if (imageUrl && !imageUrl.includes("data:image/svg+xml")) {
+              // Prevent default deletion and use our custom delete
+              event.preventDefault();
+              deleteImage(imageUrl);
+              return false; // Stop traversing
+            }
+          }
+        });
+
+        // Check if cursor is right after an image
+        if (selection.empty) {
+          const $pos = selection.$from;
+          const nodeBefore = $pos.nodeBefore;
+
+          if (nodeBefore?.type.name === "image") {
+            const imageUrl = nodeBefore.attrs.src;
+            if (imageUrl && !imageUrl.includes("data:image/svg+xml")) {
+              event.preventDefault();
+              deleteImage(imageUrl);
+            }
+          }
+        }
+      }
+    },
+    [editor, deleteImage]
+  );
+
+  // Add click handler for image deletion
+  const handleImageClick = useCallback(
+    (event: MouseEvent) => {
+      if (!editor) return;
+
+      const target = event.target as HTMLElement;
+      if (
+        target.tagName === "IMG" &&
+        target.classList.contains("rich-text-image")
+      ) {
+        const imageUrl = target.getAttribute("src");
+        if (imageUrl && !imageUrl.includes("data:image/svg+xml")) {
+          // Select the image when clicked
+          const { state, dispatch } = editor.view;
+          const { doc } = state;
+
+          doc.descendants((node, pos) => {
+            if (node.type.name === "image" && node.attrs.src === imageUrl) {
+              const tr = state.tr.setSelection(state.selection);
+              tr.setSelection(state.selection);
+              dispatch(tr);
+            }
+          });
+        }
+      }
+    },
+    [editor]
+  );
+  // Add table delete function
+  const deleteTable = useCallback(() => {
+    if (!editor) return;
+
+    if (editor.isActive("table")) {
+      editor.chain().focus().deleteTable().run();
       toast({
-        title: "Image uploaded successfully",
+        title: "Table deleted",
         status: "success",
         duration: 2000,
         isClosable: true,
       });
-    } catch (err) {
-      console.error("Upload error", err);
-      // Remove failed upload placeholders
-      const tr = editor.state.tr;
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name === "image" && node.attrs["data-uploading"] === "true") {
-          tr.delete(pos, pos + node.nodeSize);
-        }
-      });
-      editor.view.dispatch(tr);
-
-      toast({
-        title: "Upload failed",
-        description: "Please try again with a smaller image or different format.",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
     }
-  }, [editor, imageSize, toast]);
+  }, [editor, toast]);
 
   // Helper functions
   const triggerImageUpload = () => fileInputRef.current?.click();
-  
-  const handleImageSizeChange = useCallback((size: number) => {
-    setImageSize(size);
-    if (!editor) return;
-    const tr = editor.state.tr;
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === "image") {
-        tr.setNodeMarkup(pos, undefined, { 
-          ...node.attrs, 
-          class: `rounded-lg shadow-md mx-auto my-4 max-w-[${size}%] h-auto` 
-        });
-      }
-    });
-    editor.view.dispatch(tr);
-  }, [editor]);
 
   const handleInsertLink = () => {
     if (!editor) return;
@@ -404,7 +649,12 @@ export default function RichTextEditor({
   const confirmLinkInsertion = () => {
     if (!linkData.url || !editor) return;
     if (linkData.text) {
-      editor.chain().focus().insertContent(linkData.text).setLink({ href: linkData.url }).run();
+      editor
+        .chain()
+        .focus()
+        .insertContent(linkData.text)
+        .setLink({ href: linkData.url })
+        .run();
     } else {
       editor.chain().focus().setLink({ href: linkData.url }).run();
     }
@@ -417,53 +667,118 @@ export default function RichTextEditor({
     onLinkModalClose();
   };
 
-  const clearFormatting = () => editor?.chain().focus().clearNodes().unsetAllMarks().run();
-  
+  const handleInsertTable = () => {
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertTable({
+        rows: tableData.rows,
+        cols: tableData.cols,
+        withHeaderRow: true,
+      })
+      .run();
+    onTableModalClose();
+  };
+
+  const clearFormatting = () =>
+    editor?.chain().focus().clearNodes().unsetAllMarks().run();
+
   const copyAsHTML = async () => {
     if (!editor) return;
     await navigator.clipboard.writeText(editor.getHTML());
-    toast({ 
-      title: "HTML copied to clipboard", 
-      status: "success", 
+    toast({
+      title: "HTML copied to clipboard",
+      status: "success",
       duration: 1500,
       position: "top-right",
     });
   };
 
-  // Keyboard shortcuts
+  // Enhanced list extensions with multiple levels
+  const CustomBulletList = BulletList.configure({
+    HTMLAttributes: {
+      class: "rich-text-bullet-list",
+    },
+  });
+
+  const CustomOrderedList = OrderedList.configure({
+    HTMLAttributes: {
+      class: "rich-text-ordered-list",
+    },
+  });
+
+  const CustomListItem = ListItem.configure({
+    HTMLAttributes: {
+      class: "rich-text-list-item",
+    },
+  });
+
+  // Add indent/outdent functions
+  const indentList = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus().sinkListItem("listItem").run();
+  }, [editor]);
+
+  const outdentList = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus().liftListItem("listItem").run();
+  }, [editor]);
+
+  // Enhanced keyboard shortcuts with image deletion
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && editor && !readOnly) {
         switch (e.key.toLowerCase()) {
-          case 'b':
+          case "b":
             e.preventDefault();
             editor.chain().focus().toggleBold().run();
             break;
-          case 'i':
+          case "i":
             e.preventDefault();
             editor.chain().focus().toggleItalic().run();
             break;
-          case 'k':
+          case "k":
             e.preventDefault();
             handleInsertLink();
             break;
-          case 'z':
+          case "z":
             e.preventDefault();
             if (e.shiftKey) editor.chain().focus().redo().run();
             else editor.chain().focus().undo().run();
             break;
-          case 's':
-            e.preventDefault();
-            copyAsHTML();
+          case "d":
+            // Ctrl+D to delete selected image
+            if (editor.isActive("image")) {
+              e.preventDefault();
+              const imageUrl = editor.getAttributes("image").src;
+              if (imageUrl && !imageUrl.includes("data:image/svg+xml")) {
+                deleteImage(imageUrl);
+              }
+            }
             break;
         }
       }
+
+      // Handle backspace/delete for images
+      handleKeyDown(e);
     };
-    
+
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [editor, readOnly]);
+  }, [editor, readOnly, handleKeyDown, deleteImage]);
 
+  // Add click listener for image selection
+  useEffect(() => {
+    if (!editor || readOnly) return;
+
+    const view = editor.view;
+    const handleClick = (event: Event) => handleImageClick(event as MouseEvent);
+
+    view.dom.addEventListener("click", handleClick);
+    return () => view.dom.removeEventListener("click", handleClick);
+  }, [editor, readOnly, handleImageClick]);
+  
   // Type safety for heading levels
   type HeadingLevel = 1 | 2 | 3;
   const toHeadingLevel = (n: number): HeadingLevel => {
@@ -475,15 +790,15 @@ export default function RichTextEditor({
   // Loading states
   if (!mounted) {
     return (
-      <Box 
-        borderWidth={1} 
-        borderRadius="lg" 
-        p={4} 
-        minH={minHeight} 
+      <Box
+        borderWidth={1}
+        borderRadius="lg"
+        p={4}
+        minH={minHeight}
         bg={bgCard}
         borderColor={borderColor}
-        display="flex" 
-        alignItems="center" 
+        display="flex"
+        alignItems="center"
         justifyContent="center"
       >
         <Text color={textSecondary}>Loading editor...</Text>
@@ -493,28 +808,30 @@ export default function RichTextEditor({
 
   if (!editor) {
     return (
-      <Box 
-        borderWidth={1} 
-        borderRadius="lg" 
-        p={4} 
-        minH={minHeight} 
+      <Box
+        borderWidth={1}
+        borderRadius="lg"
+        p={4}
+        minH={minHeight}
         bg="red.50"
         borderColor="red.200"
-        display="flex" 
-        alignItems="center" 
+        display="flex"
+        alignItems="center"
         justifyContent="center"
       >
-        <Text color="red.600">Failed to load editor. Please refresh the page.</Text>
+        <Text color="red.600">
+          Failed to load editor. Please refresh the page.
+        </Text>
       </Box>
     );
   }
 
   return (
-    <Box 
-      borderWidth={1} 
-      borderRadius="lg" 
-      p={4} 
-      w="100%" 
+    <Box
+      borderWidth={1}
+      borderRadius="lg"
+      p={4}
+      w="100%"
       bg={bgCard}
       borderColor={borderColor}
       shadow="sm"
@@ -522,35 +839,25 @@ export default function RichTextEditor({
       position={isFullscreen ? "fixed" : "relative"}
     >
       {/* Hidden file input */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        accept="image/*" 
-        style={{ display: "none" }} 
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        style={{ display: "none" }}
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleImageUpload(file);
           e.currentTarget.value = "";
-        }} 
+        }}
       />
 
-      {/* Header with stats and actions */}
+      {/* Header with actions */}
       <VStack spacing={3} align="stretch" mb={4}>
         <Flex justify="space-between" align="center" wrap="wrap" gap={2}>
-          <HStack spacing={2}>
-            <Badge colorScheme="blue" variant="subtle">
-              {wordCount} words
-            </Badge>
-            <Badge colorScheme="green" variant="subtle">
-              {editor.storage.characterCount?.characters() || 0} chars
-            </Badge>
-            {readOnly && (
-              <Badge colorScheme="gray" variant="subtle">
-                Read Only
-              </Badge>
-            )}
-          </HStack>
-          
+          <Text fontSize="sm" color={textSecondary}>
+            Rich Text Editor
+          </Text>
+
           <HStack spacing={1}>
             <Tooltip label="Copy as HTML">
               <IconButton
@@ -562,7 +869,9 @@ export default function RichTextEditor({
                 colorScheme="blue"
               />
             </Tooltip>
-            <Tooltip label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+            <Tooltip
+              label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
               <IconButton
                 size="sm"
                 icon={isFullscreen ? <FaCompress /> : <FaExpand />}
@@ -577,15 +886,15 @@ export default function RichTextEditor({
 
         {/* Main Toolbar */}
         {!readOnly && (
-          <Box 
-            borderWidth={1} 
-            borderRadius="md" 
-            p={3} 
+          <Box
+            borderWidth={1}
+            borderRadius="md"
+            p={3}
             bg={bgToolbar}
             borderColor={borderColor}
           >
             {/* Text formatting row */}
-            <HStack spacing={toolbarSpacing} wrap="wrap" mb={3}>
+            <HStack spacing={1} wrap="wrap" mb={3}>
               <Tooltip label="Bold (Ctrl+B)">
                 <IconButton
                   size="sm"
@@ -597,7 +906,7 @@ export default function RichTextEditor({
                   variant={editor.isActive("bold") ? "solid" : "ghost"}
                 />
               </Tooltip>
-              
+
               <Tooltip label="Italic (Ctrl+I)">
                 <IconButton
                   size="sm"
@@ -609,7 +918,7 @@ export default function RichTextEditor({
                   variant={editor.isActive("italic") ? "solid" : "ghost"}
                 />
               </Tooltip>
-              
+
               <Tooltip label="Underline">
                 <IconButton
                   size="sm"
@@ -621,7 +930,7 @@ export default function RichTextEditor({
                   variant={editor.isActive("underline") ? "solid" : "ghost"}
                 />
               </Tooltip>
-              
+
               <Tooltip label="Strikethrough">
                 <IconButton
                   size="sm"
@@ -634,56 +943,51 @@ export default function RichTextEditor({
                 />
               </Tooltip>
 
-              {/* Text Color */}
-              <Popover>
-                <PopoverTrigger>
-                  <IconButton
-                    size="sm"
-                    icon={<FaPalette />}
-                    aria-label="Text Color"
-                    variant="ghost"
-                    colorScheme="gray"
-                  />
-                </PopoverTrigger>
-                <Portal>
-                  <PopoverContent>
-                    <PopoverBody>
-                      <VStack spacing={3}>
-                        <Text fontSize="sm" fontWeight="medium">Text Color</Text>
-                        <Input 
-                          type="color" 
-                          value={textColor} 
-                          onChange={(e) => { 
-                            setTextColor(e.target.value); 
-                            editor.chain().focus().setColor(e.target.value).run(); 
-                          }} 
-                        />
-                        <Button 
-                          size="sm" 
-                          onClick={() => { 
-                            setTextColor("#000000"); 
-                            editor.chain().focus().setColor("#000000").run(); 
-                          }}
-                          colorScheme="blue"
-                          variant="outline"
-                        >
-                          Reset to Black
-                        </Button>
-                      </VStack>
-                    </PopoverBody>
-                  </PopoverContent>
-                </Portal>
-              </Popover>
+              <Tooltip label="Highlight">
+                <IconButton
+                  size="sm"
+                  icon={<FaHighlighter />}
+                  onClick={() => editor.chain().focus().toggleHighlight().run()}
+                  isActive={editor.isActive("highlight")}
+                  aria-label="Highlight"
+                  colorScheme={editor.isActive("highlight") ? "blue" : "gray"}
+                  variant={editor.isActive("highlight") ? "solid" : "ghost"}
+                />
+              </Tooltip>
+
+              <Divider orientation="vertical" height="20px" />
+
+              <Tooltip label="Undo (Ctrl+Z)">
+                <IconButton
+                  size="sm"
+                  icon={<FaUndo />}
+                  onClick={() => editor.chain().focus().undo().run()}
+                  aria-label="Undo"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
+
+              <Tooltip label="Redo (Ctrl+Shift+Z)">
+                <IconButton
+                  size="sm"
+                  icon={<FaRedo />}
+                  onClick={() => editor.chain().focus().redo().run()}
+                  aria-label="Redo"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
             </HStack>
 
             <Divider my={2} />
 
             {/* Blocks and lists row */}
-            <HStack spacing={toolbarSpacing} wrap="wrap" mb={3}>
+            <HStack spacing={1} wrap="wrap" mb={3}>
               <Menu>
-                <MenuButton 
-                  as={Button} 
-                  size="sm" 
+                <MenuButton
+                  as={Button}
+                  size="sm"
                   rightIcon={<FaChevronDown />}
                   variant="ghost"
                   colorScheme="gray"
@@ -691,30 +995,40 @@ export default function RichTextEditor({
                   Blocks
                 </MenuButton>
                 <MenuList>
-                  <MenuItem 
-                    icon={<FaParagraph />} 
+                  <MenuItem
+                    icon={<FaParagraph />}
                     onClick={() => editor.chain().focus().setParagraph().run()}
                   >
                     Paragraph
                   </MenuItem>
                   {[1, 2, 3].map((level) => (
-                    <MenuItem 
+                    <MenuItem
                       key={level}
-                      icon={<FaHeading />} 
-                      onClick={() => editor.chain().focus().toggleHeading({ level: toHeadingLevel(level) }).run()}
+                      icon={<FaHeading />}
+                      onClick={() =>
+                        editor
+                          .chain()
+                          .focus()
+                          .toggleHeading({ level: toHeadingLevel(level) })
+                          .run()
+                      }
                     >
                       Heading {level}
                     </MenuItem>
                   ))}
-                  <MenuItem 
-                    icon={<FaCode />} 
-                    onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                  <MenuItem
+                    icon={<FaCode />}
+                    onClick={() =>
+                      editor.chain().focus().toggleCodeBlock().run()
+                    }
                   >
                     Code Block
                   </MenuItem>
-                  <MenuItem 
-                    icon={<FaQuoteLeft />} 
-                    onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                  <MenuItem
+                    icon={<FaQuoteLeft />}
+                    onClick={() =>
+                      editor.chain().focus().toggleBlockquote().run()
+                    }
                   >
                     Blockquote
                   </MenuItem>
@@ -725,23 +1039,76 @@ export default function RichTextEditor({
                 <IconButton
                   size="sm"
                   icon={<FaListUl />}
-                  onClick={() => editor.chain().focus().toggleBulletList().run()}
+                  onClick={() =>
+                    editor.chain().focus().toggleBulletList().run()
+                  }
                   isActive={editor.isActive("bulletList")}
                   aria-label="Bullet List"
                   colorScheme={editor.isActive("bulletList") ? "blue" : "gray"}
                   variant={editor.isActive("bulletList") ? "solid" : "ghost"}
                 />
               </Tooltip>
-              
+
               <Tooltip label="Numbered List">
                 <IconButton
                   size="sm"
                   icon={<FaListOl />}
-                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                  onClick={() =>
+                    editor.chain().focus().toggleOrderedList().run()
+                  }
                   isActive={editor.isActive("orderedList")}
                   aria-label="Numbered List"
                   colorScheme={editor.isActive("orderedList") ? "blue" : "gray"}
                   variant={editor.isActive("orderedList") ? "solid" : "ghost"}
+                />
+              </Tooltip>
+
+              <Tooltip label="Task List">
+                <IconButton
+                  size="sm"
+                  icon={<FaTasks />}
+                  onClick={() => editor.chain().focus().toggleTaskList().run()}
+                  isActive={editor.isActive("taskList")}
+                  aria-label="Task List"
+                  colorScheme={editor.isActive("taskList") ? "blue" : "gray"}
+                  variant={editor.isActive("taskList") ? "solid" : "ghost"}
+                />
+              </Tooltip>
+              {/* Add to the blocks and lists row */}
+              <Tooltip label="Indent list">
+                <IconButton
+                  size="sm"
+                  icon={<FaIndent />}
+                  onClick={indentList}
+                  aria-label="Indent list"
+                  variant="ghost"
+                  colorScheme="gray"
+                  isDisabled={!editor?.can().sinkListItem("listItem")}
+                />
+              </Tooltip>
+
+              <Tooltip label="Outdent list">
+                <IconButton
+                  size="sm"
+                  icon={<FaOutdent />}
+                  onClick={outdentList}
+                  aria-label="Outdent list"
+                  variant="ghost"
+                  colorScheme="gray"
+                  isDisabled={!editor?.can().liftListItem("listItem")}
+                />
+              </Tooltip>
+
+              {/* Add delete table button */}
+              <Tooltip label="Delete table">
+                <IconButton
+                  size="sm"
+                  icon={<FaTrash />}
+                  onClick={deleteTable}
+                  aria-label="Delete table"
+                  variant="ghost"
+                  colorScheme="red"
+                  isDisabled={!editor?.isActive("table")}
                 />
               </Tooltip>
 
@@ -760,83 +1127,53 @@ export default function RichTextEditor({
             <Divider my={2} />
 
             {/* Alignment and media row */}
-            <HStack spacing={toolbarSpacing} wrap="wrap">
+            <HStack spacing={1} wrap="wrap">
               <Tooltip label="Align left">
                 <IconButton
                   size="sm"
                   icon={<FaAlignLeft />}
-                  onClick={() => editor.chain().focus().setTextAlign("left").run()}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("left").run()
+                  }
                   aria-label="Align left"
                   variant="ghost"
                   colorScheme="gray"
                 />
               </Tooltip>
-              
               <Tooltip label="Align center">
                 <IconButton
                   size="sm"
                   icon={<FaAlignCenter />}
-                  onClick={() => editor.chain().focus().setTextAlign("center").run()}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("center").run()
+                  }
                   aria-label="Align center"
                   variant="ghost"
                   colorScheme="gray"
                 />
               </Tooltip>
-              
               <Tooltip label="Align right">
                 <IconButton
                   size="sm"
                   icon={<FaAlignRight />}
-                  onClick={() => editor.chain().focus().setTextAlign("right").run()}
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("right").run()
+                  }
                   aria-label="Align right"
                   variant="ghost"
                   colorScheme="gray"
                 />
               </Tooltip>
-
-              {/* Image upload */}
-              <Popover>
-                <PopoverTrigger>
-                  <IconButton
-                    size="sm"
-                    icon={<FaImage />}
-                    aria-label="Insert image"
-                    variant="ghost"
-                    colorScheme="gray"
-                  />
-                </PopoverTrigger>
-                <Portal>
-                  <PopoverContent>
-                    <PopoverBody>
-                      <VStack spacing={3}>
-                        <Text fontSize="sm" fontWeight="medium">Image Settings</Text>
-                        <Text fontSize="sm">Size: {imageSize}%</Text>
-                        <Slider 
-                          value={imageSize} 
-                          onChange={handleImageSizeChange} 
-                          min={25} 
-                          max={100} 
-                          step={5}
-                        >
-                          <SliderTrack>
-                            <SliderFilledTrack />
-                          </SliderTrack>
-                          <SliderThumb />
-                        </Slider>
-                        <Button 
-                          size="sm" 
-                          onClick={triggerImageUpload} 
-                          w="full"
-                          colorScheme="blue"
-                        >
-                          Upload Image
-                        </Button>
-                      </VStack>
-                    </PopoverBody>
-                  </PopoverContent>
-                </Portal>
-              </Popover>
-
+              <Tooltip label="Insert image">
+                <IconButton
+                  size="sm"
+                  icon={<FaImage />}
+                  onClick={triggerImageUpload}
+                  aria-label="Insert image"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </Tooltip>
               <Tooltip label="Insert link (Ctrl+K)">
                 <IconButton
                   size="sm"
@@ -847,71 +1184,136 @@ export default function RichTextEditor({
                   colorScheme="gray"
                 />
               </Tooltip>
-
-              <Menu>
-                <MenuButton 
-                  as={Button} 
-                  size="sm" 
-                  rightIcon={<FaChevronDown />}
+              <Tooltip label="Insert table">
+                <IconButton
+                  size="sm"
+                  icon={<FaTable />}
+                  onClick={onTableModalOpen}
+                  aria-label="Insert table"
                   variant="ghost"
                   colorScheme="gray"
-                >
-                  Table
-                </MenuButton>
-                <MenuList>
-                  <MenuItem 
-                    icon={<FaTable />} 
-                    onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-                  >
-                    Insert Table
-                  </MenuItem>
-                </MenuList>
-              </Menu>
+                />
+              </Tooltip>
+              // Add this to your toolbar (in the alignment and media row)
+              {editor?.isActive("image") && (
+                <Tooltip label="Delete image (Ctrl+D)">
+                  <IconButton
+                    size="sm"
+                    icon={<FaTrash />}
+                    onClick={() => {
+                      const imageUrl = editor.getAttributes("image").src;
+                      if (
+                        imageUrl &&
+                        !imageUrl.includes("data:image/svg+xml")
+                      ) {
+                        deleteImage(imageUrl);
+                      }
+                    }}
+                    aria-label="Delete image"
+                    variant="ghost"
+                    colorScheme="red"
+                  />
+                </Tooltip>
+              )}
             </HStack>
           </Box>
         )}
       </VStack>
 
       {/* Editor content area */}
-      <Box 
-        borderWidth={1} 
-        borderRadius="md" 
+      <Box
+        borderWidth={1}
+        borderRadius="md"
         minH={minHeight}
-        maxH={isFullscreen ? "none" : maxHeight}
         overflow="auto"
-        p={4} 
-        bg={bgCard}
+        p={4}
         borderColor={borderColor}
-        _focusWithin={{ 
-          borderColor: focusBorderColor, 
-          boxShadow: `0 0 0 1px ${focusBorderColor}` 
+        _focusWithin={{
+          borderColor: focusBorderColor,
+          boxShadow: `0 0 0 1px ${focusBorderColor}`,
         }}
         transition="all 0.2s"
         className="rich-text-editor-content"
+        sx={{
+          // Remove background to use parent's background
+          "& .ProseMirror": {
+            backgroundColor: "transparent !important",
+          },
+          // Enhanced table styling
+          "& .rich-text-table": {
+            width: "100% !important",
+            borderCollapse: "collapse !important",
+            border: `1px solid ${tableBorderColor} !important`,
+            margin: "1rem 0",
+          },
+          "& .rich-text-table-cell": {
+            border: `1px solid ${tableBorderColor} !important`,
+            padding: "12px !important",
+            minWidth: "100px",
+          },
+          "& .rich-text-table-header": {
+            border: `1px solid ${tableBorderColor} !important`,
+            padding: "12px !important",
+            backgroundColor:
+              useColorModeValue("gray.50", "gray.700") + " !important",
+            fontWeight: "bold !important",
+            minWidth: "100px",
+          },
+          // Enhanced list styling for multiple levels
+          "& .rich-text-bullet-list": {
+            listStyleType: "disc",
+            paddingLeft: "1.5rem",
+            margin: "0.5rem 0",
+            "& .rich-text-bullet-list": {
+              listStyleType: "circle",
+              margin: "0.25rem 0",
+              "& .rich-text-bullet-list": {
+                listStyleType: "square",
+                margin: "0.25rem 0",
+                "& .rich-text-bullet-list": {
+                  listStyleType: "disc",
+                  margin: "0.25rem 0",
+                },
+              },
+            },
+          },
+          "& .rich-text-ordered-list": {
+            listStyleType: "decimal",
+            paddingLeft: "1.5rem",
+            margin: "0.5rem 0",
+            "& .rich-text-ordered-list": {
+              listStyleType: "lower-alpha",
+              margin: "0.25rem 0",
+              "& .rich-text-ordered-list": {
+                listStyleType: "lower-roman",
+                margin: "0.25rem 0",
+                "& .rich-text-ordered-list": {
+                  listStyleType: "decimal",
+                  margin: "0.25rem 0",
+                },
+              },
+            },
+          },
+          "& .rich-text-list-item": {
+            margin: "0.25rem 0",
+            lineHeight: "1.6",
+          },
+          // Image styling
+          "& .rich-text-image": {
+            maxWidth: "100% !important",
+            height: "auto !important",
+            borderRadius: "0.5rem",
+            margin: "1rem 0",
+            cursor: "pointer",
+          },
+          "& [data-uploading='true']": {
+            opacity: 0.6,
+            border: `2px dashed ${borderColor} !important`,
+          },
+        }}
       >
         <EditorContent editor={editor} />
       </Box>
-
-      {/* Footer with additional stats */}
-      <Flex mt={3} justify="space-between" align="center" fontSize="sm" color={textSecondary} wrap="wrap" gap={2}>
-        <HStack spacing={4}>
-          <Text>{editor.storage.characterCount?.characters() || 0} characters</Text>
-          <Text>{wordCount} words</Text>
-          <Text>{editor.storage.characterCount?.words() || 0} words (editor)</Text>
-        </HStack>
-        
-        <HStack spacing={2}>
-          <Badge 
-            variant="subtle" 
-            colorScheme="purple" 
-            cursor="help"
-            title="Use Ctrl+B for bold, Ctrl+I for italic, Ctrl+K for links"
-          >
-            Keyboard Shortcuts
-          </Badge>
-        </HStack>
-      </Flex>
-
       {/* Link insertion modal */}
       <Modal isOpen={isLinkModalOpen} onClose={onLinkModalClose} size="md">
         <ModalOverlay />
@@ -919,16 +1321,20 @@ export default function RichTextEditor({
           <ModalHeader>Insert Link</ModalHeader>
           <ModalBody>
             <VStack spacing={4}>
-              <Input 
-                placeholder="https://example.com" 
+              <Input
+                placeholder="https://example.com"
                 value={linkData.url}
-                onChange={(e) => setLinkData({ ...linkData, url: e.target.value })}
+                onChange={(e) =>
+                  setLinkData({ ...linkData, url: e.target.value })
+                }
                 type="url"
               />
-              <Input 
-                placeholder="Link text (optional)" 
+              <Input
+                placeholder="Link text (optional)"
                 value={linkData.text}
-                onChange={(e) => setLinkData({ ...linkData, text: e.target.value })}
+                onChange={(e) =>
+                  setLinkData({ ...linkData, text: e.target.value })
+                }
               />
             </VStack>
           </ModalBody>
@@ -942,12 +1348,70 @@ export default function RichTextEditor({
               <Button variant="ghost" onClick={onLinkModalClose}>
                 Cancel
               </Button>
-              <Button 
-                colorScheme="blue" 
-                onClick={confirmLinkInsertion} 
+              <Button
+                colorScheme="blue"
+                onClick={confirmLinkInsertion}
                 isDisabled={!linkData.url}
               >
                 Insert Link
+              </Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Table insertion modal */}
+      <Modal isOpen={isTableModalOpen} onClose={onTableModalClose} size="sm">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Insert Table</ModalHeader>
+          <ModalBody>
+            <VStack spacing={4}>
+              <HStack spacing={4} w="full">
+                <VStack spacing={2} align="start" flex={1}>
+                  <Text fontSize="sm">Rows:</Text>
+                  <NumberInput
+                    value={tableData.rows}
+                    onChange={(_, value) =>
+                      setTableData({ ...tableData, rows: value })
+                    }
+                    min={1}
+                    max={10}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </VStack>
+                <VStack spacing={2} align="start" flex={1}>
+                  <Text fontSize="sm">Columns:</Text>
+                  <NumberInput
+                    value={tableData.cols}
+                    onChange={(_, value) =>
+                      setTableData({ ...tableData, cols: value })
+                    }
+                    min={1}
+                    max={10}
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                </VStack>
+              </HStack>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack>
+              <Button variant="ghost" onClick={onTableModalClose}>
+                Cancel
+              </Button>
+              <Button colorScheme="blue" onClick={handleInsertTable}>
+                Insert Table
               </Button>
             </HStack>
           </ModalFooter>
