@@ -368,9 +368,9 @@ const Dashboard = () => {
   // Navigation handlers
   const navigateToCourse = useCallback((course: any) => {
     if (course.courses?.slug) {
-      router.push(`/learn/courses/${course.courses.slug}`);
+      router.push(`/learn/${course.courses.slug}`);
     } else {
-      router.push('/learn/courses');
+      router.push('/learn');
     }
   }, [router]);
 
@@ -379,23 +379,23 @@ const Dashboard = () => {
   }, [router]);
 
   const navigateToQuizzes = useCallback(() => {
-    router.push('/learn/quizzes');
+    router.push('/learn/spaced_repetition');
   }, [router]);
 
   const navigateToAnalytics = useCallback(() => {
-    router.push('/learn/analytics');
+    router.push('/learn/dashboard');
   }, [router]);
 
   const continueLearning = useCallback(() => {
     if (data?.currentLearning) {
       const course = data.currentLearning;
       if (course.lessons?.slug) {
-        router.push(`/learn/courses/${course.courses?.slug}/lessons/${course.lessons.slug}`);
+        router.push(`/learn/${course.courses?.slug}/lessons/${course.lessons.slug}`);
       } else {
-        router.push(`/learn/courses/${course.courses?.slug}`);
+        router.push(`/learn/${course.courses?.slug}`);
       }
     } else {
-      router.push('/learn/courses');
+      router.push('/learn');
     }
   }, [data, router]);
 

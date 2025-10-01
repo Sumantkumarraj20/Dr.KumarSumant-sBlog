@@ -8,7 +8,7 @@ export default function LearnIndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/learn/dashboard");
+    router.replace("/learn/course");
   }, [router]);
 
   return null; // or a loading spinner while redirecting

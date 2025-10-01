@@ -27,6 +27,7 @@ export type Course = {
   id: string;
   title: string;
   description?: string;
+  slug?: string; 
   created_at?: string;
   modules?: Module[];
 };
@@ -36,6 +37,7 @@ export type Module = {
   course_id: string;
   title: string;
   description?: string;
+  slug?: string; 
   order_index?: number;
   created_at?: string;
   units?: Unit[];
@@ -46,6 +48,7 @@ export type Unit = {
   module_id: string;
   title: string;
   description?: string;
+  slug?: string; 
   order_index?: number;
   created_at?: string;
   lessons?: Lesson[];
@@ -56,6 +59,7 @@ export type Lesson = {
   unit_id: string;
   title: string;
   content?: any;
+  slug?: string; 
   order_index?: number;
   created_at?: string;
   quizzes?: Quiz[];
