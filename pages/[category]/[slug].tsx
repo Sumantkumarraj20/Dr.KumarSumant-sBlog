@@ -5,32 +5,33 @@ import { GetStaticPaths, GetStaticProps } from "next";
 import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { MDXRemote, MDXRemoteSerializeResult } from "next-mdx-remote";
 import Layout from "../../components/Layout";
-import { 
-  Box, 
-  Text, 
-  VStack, 
-  Accordion, 
-  AccordionItem, 
-  AccordionButton, 
-  AccordionPanel, 
-  AccordionIcon, 
-  Table, 
-  Thead, 
-  Tbody, 
-  Tr, 
-  Th, 
-  Td, 
-  Code, 
-  Image, 
-  Grid, 
+import {
+  Box,
+  Text,
+  VStack,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Code,
+  Image,
+  Grid,
   Heading,
   Skeleton,
   SkeletonText,
-  useColorModeValue
+  useColorModeValue,
 } from "@chakra-ui/react";
 import { AuthProvider } from "../../context/authContext";
 import { LanguageProvider } from "../../context/languageContext";
 import { getPostBySlug, PostMeta, listPosts } from "@/lib/posts";
+import SEO from "@/components/Seo";
 
 // Lazy load heavy components
 const PostCard = lazy(() => import("../../components/PostCard"));
@@ -41,18 +42,14 @@ const createMDXComponents = () => {
   const ResponsiveImage = (props: any) => {
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
-    
+
     const src = props.src || "https://placehold.co/600x400/EEE/31343C";
     const alt = props.alt || "";
 
     return (
       <Box position="relative" my={6}>
         {isLoading && (
-          <Skeleton 
-            height="300px" 
-            width="100%" 
-            borderRadius="md" 
-          />
+          <Skeleton height="300px" width="100%" borderRadius="md" />
         )}
         <Image
           src={hasError ? "https://placehold.co/600x400/EEE/31343C" : src}
@@ -138,7 +135,11 @@ const RelatedPostsSkeleton = () => (
   </Box>
 );
 
-export default function PostPage({ post, relatedPosts = [], locale }: PostPageProps) {
+export default function PostPage({
+  post,
+  relatedPosts = [],
+  locale,
+}: PostPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [mdxComponents, setMdxComponents] = useState<any>(null);
 
@@ -159,34 +160,37 @@ export default function PostPage({ post, relatedPosts = [], locale }: PostPagePr
     return relatedPosts.slice(0, 3); // Limit to 3 posts for performance
   }, [relatedPosts]);
 
-  const proseStyles = useMemo(() => ({
-    h1: { fontSize: "2xl", fontWeight: "bold", mt: 8, mb: 4 },
-    h2: { fontSize: "xl", fontWeight: "semibold", mt: 6, mb: 3 },
-    h3: { fontSize: "lg", fontWeight: "semibold", mt: 5, mb: 2 },
-    p: { lineHeight: "tall", mb: 3 },
-    li: { mb: 2 },
-    blockquote: { 
-      borderLeft: "4px solid", 
-      borderColor: useColorModeValue("blue.400", "blue.300"), 
-      pl: 4, 
-      fontStyle: "italic", 
-      color: useColorModeValue("gray.600", "gray.300") 
-    },
-    table: { width: "full", borderCollapse: "collapse", mb: 6 },
-    th: { 
-      borderBottom: "2px solid", 
-      borderColor: useColorModeValue("gray.300", "gray.600"), 
-      p: 2, 
-      textAlign: "left" 
-    },
-    td: { 
-      borderBottom: "1px solid", 
-      borderColor: useColorModeValue("gray.200", "gray.500"), 
-      p: 2 
-    },
-    em: { fontStyle: "italic" },
-    strong: { fontWeight: "semibold" },
-  }), []);
+  const proseStyles = useMemo(
+    () => ({
+      h1: { fontSize: "2xl", fontWeight: "bold", mt: 8, mb: 4 },
+      h2: { fontSize: "xl", fontWeight: "semibold", mt: 6, mb: 3 },
+      h3: { fontSize: "lg", fontWeight: "semibold", mt: 5, mb: 2 },
+      p: { lineHeight: "tall", mb: 3 },
+      li: { mb: 2 },
+      blockquote: {
+        borderLeft: "4px solid",
+        borderColor: useColorModeValue("blue.400", "blue.300"),
+        pl: 4,
+        fontStyle: "italic",
+        color: useColorModeValue("gray.600", "gray.300"),
+      },
+      table: { width: "full", borderCollapse: "collapse", mb: 6 },
+      th: {
+        borderBottom: "2px solid",
+        borderColor: useColorModeValue("gray.300", "gray.600"),
+        p: 2,
+        textAlign: "left",
+      },
+      td: {
+        borderBottom: "1px solid",
+        borderColor: useColorModeValue("gray.200", "gray.500"),
+        p: 2,
+      },
+      em: { fontStyle: "italic" },
+      strong: { fontWeight: "semibold" },
+    }),
+    []
+  );
 
   if (!post) {
     return (
@@ -201,88 +205,97 @@ export default function PostPage({ post, relatedPosts = [], locale }: PostPagePr
   const { meta, mdxSource } = post;
 
   return (
-    <AuthProvider>
-      <LanguageProvider>
-        <Layout>
-          <Box maxW="5xl" mx="auto" px={4} py={10}>
-            {/* Post Header */}
-            {isLoading ? (
-              <PostHeaderSkeleton />
-            ) : (
-              <VStack spacing={2} mb={10} align="start">
-                <Text 
-                  as="h1" 
-                  fontSize={{ base: "3xl", md: "4xl" }} 
-                  fontWeight="bold"
-                  bgGradient={useColorModeValue(
-                    "linear(to-r, blue.600, purple.600)",
-                    "linear(to-r, blue.300, purple.300)"
-                  )}
-                  bgClip="text"
-                >
-                  {meta.title}
-                </Text>
-                <Text fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>
-                  {meta.date}
-                  {meta.tags?.length ? ` · ${meta.tags.join(", ")}` : ""}
-                </Text>
-                {meta.description && (
-                  <Text 
-                    fontSize="md" 
-                    mt={2} 
-                    color={useColorModeValue("gray.600", "gray.300")}
-                    fontStyle="italic"
-                  >
-                    {meta.description}
-                  </Text>
-                )}
-              </VStack>
-            )}
-
-            {/* MDX Content */}
-            <Box
-              className="prose prose-slate dark:prose-invert max-w-none"
-              sx={proseStyles}
-            >
-              {isLoading || !mdxComponents ? (
-                <ContentSkeleton />
+    <>
+      <SEO title={meta.title} />
+      <AuthProvider>
+        <LanguageProvider>
+          <Layout>
+            <Box maxW="5xl" mx="auto" px={4} py={10}>
+              {/* Post Header */}
+              {isLoading ? (
+                <PostHeaderSkeleton />
               ) : (
-                <MDXRemote {...mdxSource} components={mdxComponents} />
+                <VStack spacing={2} mb={10} align="start">
+                  <Text
+                    as="h1"
+                    fontSize={{ base: "3xl", md: "4xl" }}
+                    fontWeight="bold"
+                    bgGradient={useColorModeValue(
+                      "linear(to-r, blue.600, purple.600)",
+                      "linear(to-r, blue.300, purple.300)"
+                    )}
+                    bgClip="text"
+                  >
+                    {meta.title}
+                  </Text>
+                  <Text
+                    fontSize="sm"
+                    color={useColorModeValue("gray.500", "gray.400")}
+                  >
+                    {meta.date}
+                    {meta.tags?.length ? ` · ${meta.tags.join(", ")}` : ""}
+                  </Text>
+                  {meta.description && (
+                    <Text
+                      fontSize="md"
+                      mt={2}
+                      color={useColorModeValue("gray.600", "gray.300")}
+                      fontStyle="italic"
+                    >
+                      {meta.description}
+                    </Text>
+                  )}
+                </VStack>
+              )}
+
+              {/* MDX Content */}
+              <Box
+                className="prose prose-slate dark:prose-invert max-w-none"
+                sx={proseStyles}
+              >
+                {isLoading || !mdxComponents ? (
+                  <ContentSkeleton />
+                ) : (
+                  <MDXRemote {...mdxSource} components={mdxComponents} />
+                )}
+              </Box>
+
+              {/* Related posts with lazy loading */}
+              {processedRelatedPosts.length > 0 && (
+                <Box mt={12}>
+                  <Heading size="md" mb={4}>
+                    Related posts
+                  </Heading>
+                  <Grid
+                    templateColumns={{ base: "1fr", md: "repeat(3,1fr)" }}
+                    gap={6}
+                  >
+                    <Suspense fallback={<RelatedPostsSkeleton />}>
+                      {processedRelatedPosts.map((postMeta) => (
+                        <PostCard
+                          key={`${postMeta.lang}-${postMeta.category}-${postMeta.slug}`}
+                          meta={postMeta as any}
+                          locale={locale}
+                        />
+                      ))}
+                    </Suspense>
+                  </Grid>
+                </Box>
               )}
             </Box>
-
-            {/* Related posts with lazy loading */}
-            {processedRelatedPosts.length > 0 && (
-              <Box mt={12}>
-                <Heading size="md" mb={4}>
-                  Related posts
-                </Heading>
-                <Grid templateColumns={{ base: "1fr", md: "repeat(3,1fr)" }} gap={6}>
-                  <Suspense fallback={<RelatedPostsSkeleton />}>
-                    {processedRelatedPosts.map((postMeta) => (
-                      <PostCard 
-                        key={`${postMeta.lang}-${postMeta.category}-${postMeta.slug}`} 
-                        meta={postMeta as any} 
-                        locale={locale}
-                      />
-                    ))}
-                  </Suspense>
-                </Grid>
-              </Box>
-            )}
-          </Box>
-        </Layout>
-      </LanguageProvider>
-    </AuthProvider>
+          </Layout>
+        </LanguageProvider>
+      </AuthProvider>
+    </>
   );
 }
 
 // Optimized Static Paths
 export const getStaticPaths: GetStaticPaths = async () => {
   // Generate only popular paths initially, let others be generated on-demand
-  return { 
-    paths: [], 
-    fallback: "blocking" 
+  return {
+    paths: [],
+    fallback: "blocking",
   };
 };
 
@@ -296,7 +309,7 @@ export const getStaticProps: GetStaticProps = async ({ params, locale }) => {
     // Parallel data fetching
     const [post, translations] = await Promise.all([
       getPostBySlug(slug, lang, category),
-      serverSideTranslations(lang, ["common", "nav"])
+      serverSideTranslations(lang, ["common", "nav"]),
     ]);
 
     if (!post) {
@@ -309,24 +322,22 @@ export const getStaticProps: GetStaticProps = async ({ params, locale }) => {
     let related: PostMeta[] = [];
     try {
       const allPosts = listPosts(lang, category);
-      
+
       // Simple related posts algorithm for performance
       if (post.meta?.tags?.length) {
         const tagSet = new Set(post.meta.tags);
         related = allPosts
-          .filter(p => p.slug !== slug)
+          .filter((p) => p.slug !== slug)
           .sort((a, b) => {
             const aTags = new Set(a.tags || []);
             const bTags = new Set(b.tags || []);
-            const aCommon = [...tagSet].filter(t => aTags.has(t)).length;
-            const bCommon = [...tagSet].filter(t => bTags.has(t)).length;
+            const aCommon = [...tagSet].filter((t) => aTags.has(t)).length;
+            const bCommon = [...tagSet].filter((t) => bTags.has(t)).length;
             return bCommon - aCommon;
           })
           .slice(0, 3);
       } else {
-        related = allPosts
-          .filter(p => p.slug !== slug)
-          .slice(0, 3);
+        related = allPosts.filter((p) => p.slug !== slug).slice(0, 3);
       }
     } catch (e) {
       console.error("Error computing related posts:", e);

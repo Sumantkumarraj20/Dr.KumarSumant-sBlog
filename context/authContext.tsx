@@ -1,41 +1,98 @@
-// context/AuthContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+// context/authContext.tsx
+"use client";
+
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
+import { useToast } from '@chakra-ui/react';
 
 interface Profile {
   id: string;
   email: string;
-  full_name: string | null;
-  avatar_url: string | null;
+  full_name: string;
+  avatar_url: string;
   is_admin: boolean;
   created_at: string;
-  updated_at: string | null;
+  updated_at: string;
 }
 
 interface AuthContextType {
-  user: any | null;
-  session: any | null;
-  loading: boolean;
+  user: User | null;
   profile: Profile | null;
+  loading: boolean;
   refreshProfile: () => Promise<void>;
+  signOut: () => Promise<void>;
+  recoverSession: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  loading: true,
-  profile: null,
-  refreshProfile: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<any | null>(null);
-  const [session, setSession] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
-  // Function to fetch user profile
-  const fetchUserProfile = useCallback(async (userId: string) => {
+  // Create or update user profile
+  const createUserProfile = async (user: User) => {
+    try {
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      // If profile doesn't exist, create one
+      if (!existingProfile) {
+        const profileData = {
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+          avatar_url: user.user_metadata?.avatar_url || '',
+          is_admin: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert(profileData);
+
+        if (insertError) throw insertError;
+
+        setProfile(profileData as Profile);
+      } else {
+        setProfile(existingProfile);
+      }
+    } catch (error: any) {
+      console.error('Error creating/updating profile:', error);
+      toast({
+        title: 'Error creating profile',
+        description: error.message,
+        status: 'error',
+        duration: 3000,
+      });
+    }
+  };
+
+  // Fetch user profile
+  const fetchUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -44,164 +101,121 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .single();
 
       if (error) {
-        console.error('Error fetching profile:', error);
-        // If profile doesn't exist, create one
         if (error.code === 'PGRST116') {
-          await createUserProfile(userId);
-          return await fetchUserProfile(userId); // Retry after creation
+          // Profile doesn't exist, create one
+          await createUserProfile(user!);
+          return;
         }
-        return null;
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error in fetchUserProfile:', error);
-      return null;
-    }
-  }, []);
-
-  // Function to create user profile if it doesn't exist
-  const createUserProfile = useCallback(async (userId: string) => {
-    try {
-      const user = await supabase.auth.getUser();
-      const userEmail = user.data.user?.email;
-
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          email: userEmail,
-          full_name: user.data.user?.user_metadata?.full_name || user.data.user?.user_metadata?.name || null,
-          avatar_url: user.data.user?.user_metadata?.avatar_url || null,
-          is_admin: false,
-          created_at: new Date().toISOString(),
-        });
-
-      if (error) {
-        console.error('Error creating profile:', error);
         throw error;
       }
-    } catch (error) {
-      console.error('Error in createUserProfile:', error);
+
+      setProfile(data);
+    } catch (error: any) {
+      console.error('Error fetching profile:', error);
     }
-  }, []);
+  };
 
-  // Refresh profile function - can be called from anywhere
-  const refreshProfile = useCallback(async () => {
-    if (!user?.id) return;
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchUserProfile(user.id);
+    }
+  };
 
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+      throw error;
+    }
+  };
+
+  // Session recovery function
+  const recoverSession = async () => {
     try {
       setLoading(true);
-      const profileData = await fetchUserProfile(user.id);
-      setProfile(profileData);
-    } catch (error) {
-      console.error('Error refreshing profile:', error);
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) throw error;
+      
+      if (session) {
+        setUser(session.user);
+        await fetchUserProfile(session.user.id);
+        console.log('Session recovered successfully');
+      }
+    } catch (error: any) {
+      console.error('Session recovery failed:', error);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, fetchUserProfile]);
+  };
 
-  // Initialize auth state
   useEffect(() => {
-    let mounted = true;
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      }
+      setLoading(false);
+    });
 
-    const initializeAuth = async () => {
-      try {
-        setLoading(true);
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
+      
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        await fetchUserProfile(session.user.id);
         
-        // Get current session
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          throw sessionError;
-        }
-
-        if (mounted) {
-          setSession(currentSession);
-          setUser(currentSession?.user ?? null);
-
-          // Fetch profile if user exists
-          if (currentSession?.user) {
-            const profileData = await fetchUserProfile(currentSession.user.id);
-            if (mounted) {
-              setProfile(profileData);
-            }
-          } else {
-            setProfile(null);
+        // Show toast for email confirmation
+        if (event === 'SIGNED_IN') {
+          const isNewUser = session.user.identities?.[0]?.created_at === session.user.identities?.[0]?.updated_at;
+          
+          if (isNewUser && !session.user.email_confirmed_at) {
+            toast({
+              title: 'Email confirmation required',
+              description: 'Please check your email to confirm your account.',
+              status: 'warning',
+              duration: 5000,
+              isClosable: true,
+            });
           }
         }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        if (mounted) {
-          setUser(null);
-          setSession(null);
-          setProfile(null);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+      } else {
+        setProfile(null);
+      }
+      
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Check for session recovery on mount
+  useEffect(() => {
+    const checkStoredSession = async () => {
+      const storedSession = localStorage.getItem('supabase.auth.token');
+      if (storedSession && !user && !loading) {
+        console.log('Attempting session recovery...');
+        await recoverSession();
       }
     };
 
-    initializeAuth();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        if (!mounted) return;
-
-        try {
-          setSession(newSession);
-          setUser(newSession?.user ?? null);
-
-          if (newSession?.user) {
-            const profileData = await fetchUserProfile(newSession.user.id);
-            if (mounted) {
-              setProfile(profileData);
-            }
-          } else {
-            setProfile(null);
-          }
-        } catch (error) {
-          console.error('Auth state change error:', error);
-          if (mounted) {
-            setProfile(null);
-          }
-        } finally {
-          if (mounted) {
-            setLoading(false);
-          }
-        }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [fetchUserProfile]);
+    checkStoredSession();
+  }, []);
 
   const value = {
     user,
-    session,
-    loading,
     profile,
+    loading,
     refreshProfile,
+    signOut,
+    recoverSession,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

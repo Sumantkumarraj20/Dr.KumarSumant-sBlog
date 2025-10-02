@@ -49,7 +49,7 @@ export default function AuthMenu({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Use Chakra UI color mode values
+  // Move ALL useColorModeValue calls to the top - never conditionally
   const bgColor = useColorModeValue("white", "gray.800");
   const hoverBgColor = useColorModeValue("gray.50", "gray.700");
   const borderColor = useColorModeValue("gray.200", "gray.600");
@@ -58,12 +58,13 @@ export default function AuthMenu({
   const dropdownBg = useColorModeValue("white", "gray.800");
   const dropdownBorder = useColorModeValue("gray.200", "gray.600");
   const dropdownShadow = useColorModeValue("0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)", "0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1)");
-  
-  // Specific section backgrounds
   const menuItemHoverBg = useColorModeValue("blue.50", "blue.900/20");
   const adminHoverBg = useColorModeValue("purple.50", "purple.900/20");
   const signOutHoverBg = useColorModeValue("red.50", "red.900/20");
   const headerBg = useColorModeValue("gray.50", "gray.700");
+  const blueColor = useColorModeValue("blue.600", "blue.400");
+  const purpleColor = useColorModeValue("purple.600", "purple.400");
+  const redColor = useColorModeValue("red.600", "red.400");
 
   // Enhanced click outside handler with animation support
   useEffect(() => {

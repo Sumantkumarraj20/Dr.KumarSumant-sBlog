@@ -36,41 +36,42 @@ import { useAuth } from "@/context/authContext";
 import { recordProgress } from "@/lib/userProgress";
 import type { Course, Module, Unit, Lesson, UserProgress } from "@/types/learn";
 import { FiAlertCircle, FiBook } from "react-icons/fi";
+import SEO from "@/components/Seo";
 
 // Lazy load components with proper error boundaries
-const Dashboard = lazy(() => 
-  import("@/components/learning/Dashboard").catch(() => ({ 
-    default: () => <Text>Failed to load Dashboard</Text> 
+const Dashboard = lazy(() =>
+  import("@/components/learning/Dashboard").catch(() => ({
+    default: () => <Text>Failed to load Dashboard</Text>,
   }))
 );
-const ModulePage = lazy(() => 
-  import("@/components/learning/ModulePage").catch(() => ({ 
-    default: () => <Text>Failed to load Module</Text> 
+const ModulePage = lazy(() =>
+  import("@/components/learning/ModulePage").catch(() => ({
+    default: () => <Text>Failed to load Module</Text>,
   }))
 );
-const UnitPage = lazy(() => 
-  import("@/components/learning/UnitPage").catch(() => ({ 
-    default: () => <Text>Failed to load Unit</Text> 
+const UnitPage = lazy(() =>
+  import("@/components/learning/UnitPage").catch(() => ({
+    default: () => <Text>Failed to load Unit</Text>,
   }))
 );
-const LessonPage = lazy(() => 
-  import("@/components/learning/LessonPage").catch(() => ({ 
-    default: () => <Text>Failed to load Lesson</Text> 
+const LessonPage = lazy(() =>
+  import("@/components/learning/LessonPage").catch(() => ({
+    default: () => <Text>Failed to load Lesson</Text>,
   }))
 );
-const LearningInterface = lazy(() => 
-  import("@/components/learning/LearningInterface").catch(() => ({ 
-    default: () => <Text>Failed to load Learning Interface</Text> 
+const LearningInterface = lazy(() =>
+  import("@/components/learning/LearningInterface").catch(() => ({
+    default: () => <Text>Failed to load Learning Interface</Text>,
   }))
 );
-const Spaced_Repetition = lazy(() => 
-  import("@/components/learning/Spaced_Repition").catch(() => ({ 
-    default: () => <Text>Failed to load Spaced Repetition</Text> 
+const Spaced_Repetition = lazy(() =>
+  import("@/components/learning/Spaced_Repition").catch(() => ({
+    default: () => <Text>Failed to load Spaced Repetition</Text>,
   }))
 );
-const CoursePage = lazy(() => 
-  import("@/components/learning/CoursePage").catch(() => ({ 
-    default: () => <Text>Failed to load Courses</Text> 
+const CoursePage = lazy(() =>
+  import("@/components/learning/CoursePage").catch(() => ({
+    default: () => <Text>Failed to load Courses</Text>,
   }))
 );
 
@@ -97,7 +98,10 @@ const PageSkeleton = () => (
 );
 
 // Optimized custom hook for data management
-const useCourseData = (userId: string | undefined, courseId: string | undefined) => {
+const useCourseData = (
+  userId: string | undefined,
+  courseId: string | undefined
+) => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [progressMap, setProgressMap] = useState<UserProgress>({});
@@ -123,12 +127,12 @@ const useCourseData = (userId: string | undefined, courseId: string | undefined)
         if (cached) {
           const { data, timestamp, version = 1 } = JSON.parse(cached);
           const isFresh = Date.now() - timestamp < cacheTime;
-          
+
           if (isFresh && isMounted && version >= 1) {
             setCourses(data.courses || []);
             setProgressMap(data.progress || {});
             setLoading(false);
-            
+
             // Background refresh for stale data
             if (Date.now() - timestamp > cacheTime / 2) {
               setTimeout(() => loadFreshData(userId, cacheKey), 500);
@@ -180,13 +184,16 @@ const useCourseData = (userId: string | undefined, courseId: string | undefined)
       }
     };
 
-    const loadProgressInBackground = async (userId: string, coursesData: Course[]) => {
+    const loadProgressInBackground = async (
+      userId: string,
+      coursesData: Course[]
+    ) => {
       try {
         const progressData: UserProgress = {};
-        
+
         // Only load progress for current course immediately, others in background
         const currentCourse = coursesData.find((c) => c.id === courseId);
-        const coursesToLoad = currentCourse 
+        const coursesToLoad = currentCourse
           ? [currentCourse] // Load current course first
           : coursesData.slice(0, 2); // Load first 2 courses for dashboard
 
@@ -196,7 +203,7 @@ const useCourseData = (userId: string | undefined, courseId: string | undefined)
         );
 
         const initialResults = await Promise.allSettled(initialPromises);
-        
+
         initialResults.forEach((result, index) => {
           if (result.status === "fulfilled" && isMounted) {
             progressData[coursesToLoad[index].id] = result.value;
@@ -210,13 +217,17 @@ const useCourseData = (userId: string | undefined, courseId: string | undefined)
         // Load remaining courses in background
         if (coursesData.length > coursesToLoad.length) {
           setTimeout(async () => {
-            const remainingCourses = coursesData.filter(c => !coursesToLoad.includes(c));
+            const remainingCourses = coursesData.filter(
+              (c) => !coursesToLoad.includes(c)
+            );
             const remainingPromises = remainingCourses.map((course) =>
               fetchCourseProgress(userId, course.id)
             );
 
-            const remainingResults = await Promise.allSettled(remainingPromises);
-            
+            const remainingResults = await Promise.allSettled(
+              remainingPromises
+            );
+
             remainingResults.forEach((result, index) => {
               if (result.status === "fulfilled" && isMounted) {
                 setProgressMap((prev) => ({
@@ -296,11 +307,14 @@ const useCourseDerivation = (
     }
 
     // Fast course lookup using Map for better performance
-    const courseMap = new Map(courses.map(c => [c.id, c]));
-    const courseBySlug = new Map(courses.map(c => [c.slug, c]));
-    
-    const course = courseMap.get(routeInfo.courseId) || courseBySlug.get(routeInfo.courseId) || null;
-    
+    const courseMap = new Map(courses.map((c) => [c.id, c]));
+    const courseBySlug = new Map(courses.map((c) => [c.slug, c]));
+
+    const course =
+      courseMap.get(routeInfo.courseId) ||
+      courseBySlug.get(routeInfo.courseId) ||
+      null;
+
     if (!course) {
       return {
         selectedCourse: null,
@@ -311,25 +325,27 @@ const useCourseDerivation = (
     }
 
     // Only proceed with module lookup if moduleId exists
-    const module = routeInfo.moduleId 
-      ? (course.modules || []).find((m) => 
-          m.id === routeInfo.moduleId || m.slug === routeInfo.moduleId
+    const module = routeInfo.moduleId
+      ? (course.modules || []).find(
+          (m) => m.id === routeInfo.moduleId || m.slug === routeInfo.moduleId
         ) || null
       : null;
 
     // Only proceed with unit lookup if unitId exists and module exists
-    const unit = (routeInfo.unitId && module) 
-      ? (module.units || []).find((u) => 
-          u.id === routeInfo.unitId || u.slug === routeInfo.unitId
-        ) || null
-      : null;
+    const unit =
+      routeInfo.unitId && module
+        ? (module.units || []).find(
+            (u) => u.id === routeInfo.unitId || u.slug === routeInfo.unitId
+          ) || null
+        : null;
 
     // Only proceed with lesson lookup if lessonId exists and unit exists
-    const lesson = (routeInfo.lessonId && unit) 
-      ? (unit.lessons || []).find((l) => 
-          l.id === routeInfo.lessonId || l.slug === routeInfo.lessonId
-        ) || null
-      : null;
+    const lesson =
+      routeInfo.lessonId && unit
+        ? (unit.lessons || []).find(
+            (l) => l.id === routeInfo.lessonId || l.slug === routeInfo.lessonId
+          ) || null
+        : null;
 
     return {
       selectedCourse: course,
@@ -368,7 +384,7 @@ const LearnPage = () => {
   );
 
   // Optimized course derivation
-  const { selectedCourse, selectedModule, selectedUnit, selectedLesson } = 
+  const { selectedCourse, selectedModule, selectedUnit, selectedLesson } =
     useCourseDerivation(courses, routeInfo, activeTab);
 
   // Sync active tab with route changes
@@ -412,7 +428,7 @@ const LearnPage = () => {
 
       // Smart shallow routing
       const isShallow = tab !== "courses" || !lesson;
-      
+
       router
         .push(path, undefined, { shallow: isShallow })
         .then(() => setNavigationInProgress(false))
@@ -523,7 +539,18 @@ const LearnPage = () => {
         </Breadcrumb>
       </Box>
     );
-  }, [activeTab, selectedCourse, selectedModule, selectedUnit, selectedLesson, navigateTo, navigationInProgress, borderColor, currentPageColor, linkColor]);
+  }, [
+    activeTab,
+    selectedCourse,
+    selectedModule,
+    selectedUnit,
+    selectedLesson,
+    navigateTo,
+    navigationInProgress,
+    borderColor,
+    currentPageColor,
+    linkColor,
+  ]);
 
   // Optimized main content render with proper level detection
   const renderMainContent = useMemo(() => {
@@ -537,14 +564,14 @@ const LearnPage = () => {
             <Dashboard />
           </Suspense>
         );
-      
+
       case "srs":
         return (
           <Suspense fallback={<PageSkeleton />}>
             <Spaced_Repetition userId={user?.id || ""} />
           </Suspense>
         );
-      
+
       case "courses":
         // Course list level
         if (!selectedCourse) {
@@ -558,7 +585,7 @@ const LearnPage = () => {
             </Suspense>
           );
         }
-        
+
         // Course level - show modules
         if (!selectedModule) {
           return (
@@ -574,7 +601,7 @@ const LearnPage = () => {
             </Suspense>
           );
         }
-        
+
         // Module level - show units
         if (!selectedUnit) {
           return (
@@ -590,7 +617,7 @@ const LearnPage = () => {
             </Suspense>
           );
         }
-        
+
         // Unit level - show lessons
         if (!selectedLesson) {
           return (
@@ -614,7 +641,7 @@ const LearnPage = () => {
             </Suspense>
           );
         }
-        
+
         // Lesson level - show learning interface
         return (
           <Suspense fallback={<PageSkeleton />}>
@@ -640,7 +667,7 @@ const LearnPage = () => {
             />
           </Suspense>
         );
-      
+
       default:
         return null;
     }
@@ -683,9 +710,9 @@ const LearnPage = () => {
           isDisabled={navigationInProgress}
           opacity={navigationInProgress ? 0.6 : 1}
           transition="all 0.2s ease-in-out"
-          _hover={{ 
+          _hover={{
             transform: navigationInProgress ? "none" : "scale(1.05)",
-            shadow: "md"
+            shadow: "md",
           }}
         />
       </Tooltip>
@@ -696,84 +723,135 @@ const LearnPage = () => {
   // Loading state
   if ((loading || authLoading) && courses.length === 0) {
     return (
-      <Layout>
-        <Flex h="80vh" align="center" justify="center" bg={bgColor}>
-          <VStack spacing={4}>
-            <Spinner size="xl" thickness="4px" color="blue.500" speed="0.65s" />
-            <Text color={textColor}>
-              Loading your learning dashboard...
-            </Text>
-          </VStack>
-        </Flex>
-      </Layout>
+      <>
+        <SEO title="Identifying you" />
+        <Layout>
+          <Flex h="80vh" align="center" justify="center" bg={bgColor}>
+            <VStack spacing={4}>
+              <Spinner
+                size="xl"
+                thickness="4px"
+                color="blue.500"
+                speed="0.65s"
+              />
+              <Text color={textColor}>Loading your learning dashboard...</Text>
+            </VStack>
+          </Flex>
+        </Layout>
+      </>
     );
   }
 
   // Auth check
   if (!user) {
     return (
-      <Layout>
-        <Flex h="80vh" align="center" justify="center" bg={bgColor}>
-          <Box
-            p={8}
-            bg={sidebarBg}
-            borderRadius="lg"
-            shadow="xl"
-            textAlign="center"
-            maxW="md"
-            w="full"
-            mx={4}
-          >
-            <VStack spacing={6}>
-              <Icon as={FiAlertCircle} boxSize={12} color="orange.500" />
-              <Heading size="lg">Authentication Required</Heading>
-              <Text color={textColor}>
-                Please log in to access learning features and track your progress.
-              </Text>
-              <Button
-                colorScheme="blue"
-                size="lg"
-                w="full"
-                onClick={() => router.push("/auth")}
-                leftIcon={<FiBook />}
-                _hover={{
-                  transform: "translateY(-2px)",
-                  shadow: "lg",
-                }}
-                transition="all 0.2s ease-in-out"
-              >
-                Sign In to Continue Learning
-              </Button>
-              <Text
-                fontSize="sm"
-                color={textColor}
-              >
-                Don't have an account? You can sign up from the login page.
-              </Text>
-            </VStack>
-          </Box>
-        </Flex>
-      </Layout>
+      <>
+        <SEO title="You are Unknown to me" />
+        <Layout>
+          <Flex h="80vh" align="center" justify="center" bg={bgColor}>
+            <Box
+              p={8}
+              bg={sidebarBg}
+              borderRadius="lg"
+              shadow="xl"
+              textAlign="center"
+              maxW="md"
+              w="full"
+              mx={4}
+            >
+              <VStack spacing={6}>
+                <Icon as={FiAlertCircle} boxSize={12} color="orange.500" />
+                <Heading size="lg">Authentication Required</Heading>
+                <Text color={textColor}>
+                  Please log in to access learning features and track your
+                  progress.
+                </Text>
+                <Button
+                  colorScheme="blue"
+                  size="lg"
+                  w="full"
+                  onClick={() => router.push("/auth")}
+                  leftIcon={<FiBook />}
+                  _hover={{
+                    transform: "translateY(-2px)",
+                    shadow: "lg",
+                  }}
+                  transition="all 0.2s ease-in-out"
+                >
+                  Sign In to Continue Learning
+                </Button>
+                <Text fontSize="sm" color={textColor}>
+                  Don't have an account? You can sign up from the login page.
+                </Text>
+              </VStack>
+            </Box>
+          </Flex>
+        </Layout>
+      </>
     );
   }
 
   return (
-    <Layout>
-      <Flex minH="100vh" bg={bgColor} direction="column">
-        {/* Sidebar for wide screens */}
-        <Flex flex="1" position="relative" minH="100vh">
-          <VStack
-            display={{ base: "none", md: "flex" }}
-            spacing={3}
-            p={3}
-            bg={sidebarBg}
-            borderRight="1px solid"
+    <>
+      <SEO title="Learn" />
+      <Layout>
+        <Flex minH="100vh" bg={bgColor} direction="column">
+          {/* Sidebar for wide screens */}
+          <Flex flex="1" position="relative" minH="100vh">
+            <VStack
+              display={{ base: "none", md: "flex" }}
+              spacing={3}
+              p={3}
+              bg={sidebarBg}
+              borderRight="1px solid"
+              borderColor={borderColor}
+              position="sticky"
+              top={0}
+              height="100vh"
+              align="center"
+              flexShrink={0}
+            >
+              <TabButton
+                tab="dashboard"
+                icon={<HomeIcon className="h-5 w-5" />}
+                label="Dashboard"
+              />
+              <TabButton
+                tab="courses"
+                icon={<BookOpenIcon className="h-5 w-5" />}
+                label="Courses"
+              />
+              <TabButton
+                tab="srs"
+                icon={<ClockIcon className="h-5 w-5" />}
+                label="Spaced Repetition"
+              />
+            </VStack>
+
+            {/* Main content area */}
+            <Box flex="1" display="flex" flexDirection="column" minWidth={0}>
+              {renderBreadcrumb}
+              <Box flex="1" p={4} pb={{ base: 16, md: 4 }}>
+                {renderMainContent}
+              </Box>
+            </Box>
+          </Flex>
+
+          {/* Bottom nav for small screens */}
+          <HStack
+            display={{ base: "flex", md: "none" }}
+            position="fixed"
+            bottom={0}
+            left={0}
+            right={0}
+            bg={bottomNavBg}
+            justify="space-around"
+            p={2}
+            borderTop="1px solid"
             borderColor={borderColor}
-            position="sticky"
-            top={0}
-            height="100vh"
-            align="center"
-            flexShrink={0}
+            zIndex={1000}
+            backdropFilter="blur(8px)"
+            shadow="lg"
           >
             <TabButton
               tab="dashboard"
@@ -788,53 +866,12 @@ const LearnPage = () => {
             <TabButton
               tab="srs"
               icon={<ClockIcon className="h-5 w-5" />}
-              label="Spaced Repetition"
+              label="SRS"
             />
-          </VStack>
-
-          {/* Main content area */}
-          <Box flex="1" display="flex" flexDirection="column" minWidth={0}>
-            {renderBreadcrumb}
-            <Box flex="1" p={4} pb={{ base: 16, md: 4 }}>
-              {renderMainContent}
-            </Box>
-          </Box>
+          </HStack>
         </Flex>
-
-        {/* Bottom nav for small screens */}
-        <HStack
-          display={{ base: "flex", md: "none" }}
-          position="fixed"
-          bottom={0}
-          left={0}
-          right={0}
-          bg={bottomNavBg}
-          justify="space-around"
-          p={2}
-          borderTop="1px solid"
-          borderColor={borderColor}
-          zIndex={1000}
-          backdropFilter="blur(8px)"
-          shadow="lg"
-        >
-          <TabButton
-            tab="dashboard"
-            icon={<HomeIcon className="h-5 w-5" />}
-            label="Dashboard"
-          />
-          <TabButton
-            tab="courses"
-            icon={<BookOpenIcon className="h-5 w-5" />}
-            label="Courses"
-          />
-          <TabButton
-            tab="srs"
-            icon={<ClockIcon className="h-5 w-5" />}
-            label="SRS"
-          />
-        </HStack>
-      </Flex>
-    </Layout>
+      </Layout>
+    </>
   );
 };
 

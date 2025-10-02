@@ -1,9 +1,9 @@
 // pages/auth.tsx
 "use client";
 
-import { useState } from "react";
-import { signIn, signUp } from "../lib/auth";
-import { supabase } from "../lib/supabaseClient";
+import { useState, useEffect } from "react";
+import { signIn, signUp } from "@/lib/auth";
+import { supabase } from "@/lib/supabaseClient";
 import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 import { GetStaticProps } from "next";
 import Layout from "../components/Layout";
@@ -36,9 +36,10 @@ import {
 import { BiSearchAlt, BiShow, BiShowAlt } from "react-icons/bi";
 import { FiMail, FiLock, FiUser, FiArrowRight } from "react-icons/fi";
 import { useRouter } from "next/router";
+import SEO from "@/components/Seo";
 
 export default function AuthPage() {
-  const router = useRouter()
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -49,8 +50,36 @@ export default function AuthPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [redirectPath, setRedirectPath] = useState("/learn"); // Default to learn page
 
   const toast = useToast();
+
+  // Get redirect path from query parameter or stored path
+  useEffect(() => {
+    // Check for redirect query parameter first
+    const urlRedirect = router.query.redirect;
+    if (urlRedirect && typeof urlRedirect === 'string') {
+      setRedirectPath(urlRedirect);
+      return;
+    }
+
+    // Check for stored redirect path in sessionStorage
+    const storedRedirect = sessionStorage.getItem('auth_redirect');
+    if (storedRedirect) {
+      setRedirectPath(storedRedirect);
+    }
+  }, [router.query.redirect]);
+
+  // Store current path when component mounts (for cases where user navigates directly to auth)
+  useEffect(() => {
+    // Only store if we're not already coming from a redirect
+    if (!router.query.redirect && router.asPath !== '/auth') {
+      // Don't store auth page itself
+      if (!router.asPath.includes('/auth')) {
+        sessionStorage.setItem('auth_redirect', router.asPath);
+      }
+    }
+  }, [router.asPath, router.query.redirect]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -110,7 +139,7 @@ export default function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -118,7 +147,7 @@ export default function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        await signUp(email, password);
+        await signUp(email, password, fullName);
         toast({
           title: "Account created successfully! 🎉",
           description: "Welcome to our learning platform!",
@@ -127,6 +156,9 @@ export default function AuthPage() {
           isClosable: true,
           position: "top-right",
         });
+        // For signup, always go to learn page or redirect path
+        const targetPath = redirectPath !== '/auth' ? redirectPath : '/learn';
+        router.push(targetPath);
       } else {
         await signIn(email, password);
         toast({
@@ -137,12 +169,18 @@ export default function AuthPage() {
           isClosable: true,
           position: "top-right",
         });
+        // For signin, redirect to stored path or learn page
+        const targetPath = redirectPath !== '/auth' ? redirectPath : '/learn';
+        router.push(targetPath);
       }
+      
+      // Clear the stored redirect path after successful auth
+      sessionStorage.removeItem('auth_redirect');
     } catch (err: any) {
       console.error("Auth error:", err);
-      
+
       let errorMessage = "An unexpected error occurred";
-      
+
       if (err.message?.includes("Invalid login credentials")) {
         errorMessage = "Invalid email or password";
       } else if (err.message?.includes("Email not confirmed")) {
@@ -161,7 +199,6 @@ export default function AuthPage() {
         isClosable: true,
         position: "top-right",
       });
-      router.push('/learn');
     } finally {
       setLoading(false);
     }
@@ -170,14 +207,24 @@ export default function AuthPage() {
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
+      // Include redirect path in OAuth state for Google sign-in
+      const state = JSON.stringify({ 
+        redirectTo: redirectPath !== '/auth' ? redirectPath : '/learn' 
+      });
+
+      // Encode state and include it in the redirect URL
+      const encodedState = btoa(state);
+      const redirectUrl = new URL(`${window.location.origin}/auth/callback`);
+      redirectUrl.searchParams.set('state', encodedState);
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { 
-          redirectTo: `${window.location.origin}/learn`,
+        options: {
+          redirectTo: redirectUrl.toString(),
           queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
+            access_type: "offline",
+            prompt: "consent",
+          },
         },
       });
 
@@ -216,177 +263,148 @@ export default function AuthPage() {
   const mutedText = useColorModeValue("gray.600", "gray.400");
 
   return (
-    <Layout>
-      <Box
-        minH="calc(100vh - 80px)"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-        px={4}
-        py={8}
-        bgGradient={useColorModeValue(
-          "linear(to-br, blue.50, purple.50)",
-          "linear(to-br, gray.900, blue.900)"
-        )}
-      >
-        <ScaleFade in initialScale={0.9}>
-          <Card
-            maxW="md"
-            w="full"
-            bg={panelBg}
-            rounded="3xl"
-            shadow={panelShadow}
-            border="1px solid"
-            borderColor={panelBorder}
-            position="relative"
-            overflow="hidden"
-          >
-            {/* Decorative accent bar */}
-            <Box
-              position="absolute"
-              top="0"
-              left="0"
-              right="0"
-              h="1"
-              bgGradient="linear(to-r, blue.500, purple.500, pink.500)"
-            />
+    <>
+      <SEO title={mode === "signup" ? "Sign Up" : "Sign In"} />
+      <Layout>
+        <Box
+          minH="calc(100vh - 80px)"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          px={4}
+          py={8}
+          bgGradient={useColorModeValue(
+            "linear(to-br, blue.50, purple.50)",
+            "linear(to-br, gray.900, blue.900)"
+          )}
+        >
+          <ScaleFade in initialScale={0.9}>
+            <Card
+              maxW="md"
+              w="full"
+              bg={panelBg}
+              rounded="3xl"
+              shadow={panelShadow}
+              border="1px solid"
+              borderColor={panelBorder}
+              position="relative"
+              overflow="hidden"
+            >
+              {/* Decorative accent bar */}
+              <Box
+                position="absolute"
+                top="0"
+                left="0"
+                right="0"
+                h="1"
+                bgGradient="linear(to-r, blue.500, purple.500, pink.500)"
+              />
 
-            <CardBody p={8}>
-              <VStack spacing={6} align="stretch">
-                {/* Header */}
-                <VStack spacing={3} textAlign="center">
-                  <Box
-                    w="16"
-                    h="16"
-                    bgGradient="linear(to-br, blue.500, purple.500)"
-                    rounded="2xl"
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="center"
-                    color="white"
-                    fontSize="2xl"
-                    fontWeight="bold"
-                  >
-                    {mode === "signup" ? "👋" : "🔐"}
-                  </Box>
-                  <VStack spacing={1}>
-                    <Heading size="lg" fontWeight="bold">
-                      {mode === "signup" ? "Create Your Account" : "Welcome Back"}
-                    </Heading>
-                    <Text fontSize="md" color={mutedText}>
-                      {mode === "signup"
-                        ? "Join our learning community and start your journey"
-                        : "Sign in to continue your learning progress"}
-                    </Text>
+              <CardBody p={8}>
+                <VStack spacing={6} align="stretch">
+                  {/* Header */}
+                  <VStack spacing={3} textAlign="center">
+                    <Box
+                      w="16"
+                      h="16"
+                      bgGradient="linear(to-br, blue.500, purple.500)"
+                      rounded="2xl"
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      color="white"
+                      fontSize="2xl"
+                      fontWeight="bold"
+                    >
+                      {mode === "signup" ? "👋" : "🔐"}
+                    </Box>
+                    <VStack spacing={1}>
+                      <Heading size="lg" fontWeight="bold">
+                        {mode === "signup"
+                          ? "Create Your Account"
+                          : "Welcome Back"}
+                      </Heading>
+                      <Text fontSize="md" color={mutedText}>
+                        {mode === "signup"
+                          ? "Join our learning community and start your journey"
+                          : "Sign in to continue your learning progress"}
+                      </Text>
+                    </VStack>
                   </VStack>
-                </VStack>
 
-                {/* Form */}
-                <VStack as="form" spacing={4} onSubmit={handleSubmit}>
-                  {/* Full Name (Sign up only) */}
-                  <Collapse in={mode === "signup"} animateOpacity>
-                    <FormControl isInvalid={!!errors.fullName}>
-                      <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                        Full Name
+                  {/* Form */}
+                  <VStack as="form" spacing={4} onSubmit={handleSubmit}>
+                    {/* Full Name (Sign up only) */}
+                    <Collapse in={mode === "signup"} animateOpacity>
+                      <FormControl isInvalid={!!errors.fullName}>
+                        <FormLabel
+                          fontSize="sm"
+                          fontWeight="medium"
+                          color="gray.700"
+                        >
+                          Full Name
+                        </FormLabel>
+                        <InputGroup>
+                          <Input
+                            type="text"
+                            placeholder="Enter your full name"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            size="lg"
+                            focusBorderColor={accentColor}
+                            bg={inputBg}
+                            pl={10}
+                          />
+                          <InputRightElement pointerEvents="none" h="full">
+                            <FiUser color="gray.400" />
+                          </InputRightElement>
+                        </InputGroup>
+                        <FormErrorMessage>{errors.fullName}</FormErrorMessage>
+                      </FormControl>
+                    </Collapse>
+
+                    {/* Email */}
+                    <FormControl isInvalid={!!errors.email}>
+                      <FormLabel
+                        fontSize="sm"
+                        fontWeight="medium"
+                        color="gray.700"
+                      >
+                        Email Address
                       </FormLabel>
                       <InputGroup>
                         <Input
-                          type="text"
-                          placeholder="Enter your full name"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
+                          type="email"
+                          placeholder="your.email@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
                           size="lg"
                           focusBorderColor={accentColor}
                           bg={inputBg}
                           pl={10}
                         />
                         <InputRightElement pointerEvents="none" h="full">
-                          <FiUser color="gray.400" />
+                          <FiMail color="gray.400" />
                         </InputRightElement>
                       </InputGroup>
-                      <FormErrorMessage>{errors.fullName}</FormErrorMessage>
+                      <FormErrorMessage>{errors.email}</FormErrorMessage>
                     </FormControl>
-                  </Collapse>
 
-                  {/* Email */}
-                  <FormControl isInvalid={!!errors.email}>
-                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                      Email Address
-                    </FormLabel>
-                    <InputGroup>
-                      <Input
-                        type="email"
-                        placeholder="your.email@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        size="lg"
-                        focusBorderColor={accentColor}
-                        bg={inputBg}
-                        pl={10}
-                      />
-                      <InputRightElement pointerEvents="none" h="full">
-                        <FiMail color="gray.400" />
-                      </InputRightElement>
-                    </InputGroup>
-                    <FormErrorMessage>{errors.email}</FormErrorMessage>
-                  </FormControl>
-
-                  {/* Password */}
-                  <FormControl isInvalid={!!errors.password}>
-                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                      Password
-                    </FormLabel>
-                    <InputGroup>
-                      <Input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => handlePasswordChange(e.target.value)}
-                        size="lg"
-                        focusBorderColor={accentColor}
-                        bg={inputBg}
-                        pl={10}
-                      />
-                      <InputRightElement h="full">
-                        <IconButton
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                          icon={showPassword ? <BiShow /> : <BiSearchAlt />}
-                          variant="ghost"
-                          onClick={() => setShowPassword(!showPassword)}
-                        />
-                      </InputRightElement>
-                    </InputGroup>
-                    <FormErrorMessage>{errors.password}</FormErrorMessage>
-                    
-                    {/* Password Strength Indicator (Sign up only) */}
-                    <Collapse in={mode === "signup" && password.length > 0} animateOpacity>
-                      <VStack spacing={1} mt={2}>
-                        <Progress 
-                          value={passwordStrength} 
-                          size="sm" 
-                          w="full" 
-                          colorScheme={getPasswordStrengthColor()}
-                          rounded="full"
-                        />
-                        <Text fontSize="xs" color="gray.500" w="full" textAlign="left">
-                          Password strength: {passwordStrength < 25 ? "Weak" : passwordStrength < 50 ? "Fair" : passwordStrength < 75 ? "Good" : "Strong"}
-                        </Text>
-                      </VStack>
-                    </Collapse>
-                  </FormControl>
-
-                  {/* Confirm Password (Sign up only) */}
-                  <Collapse in={mode === "signup"} animateOpacity>
-                    <FormControl isInvalid={!!errors.confirmPassword}>
-                      <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                        Confirm Password
+                    {/* Password */}
+                    <FormControl isInvalid={!!errors.password}>
+                      <FormLabel
+                        fontSize="sm"
+                        fontWeight="medium"
+                        color="gray.700"
+                      >
+                        Password
                       </FormLabel>
                       <InputGroup>
                         <Input
-                          type={showConfirmPassword ? "text" : "password"}
-                          placeholder="Confirm your password"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Enter your password"
+                          value={password}
+                          onChange={(e) => handlePasswordChange(e.target.value)}
                           size="lg"
                           focusBorderColor={accentColor}
                           bg={inputBg}
@@ -394,110 +412,198 @@ export default function AuthPage() {
                         />
                         <InputRightElement h="full">
                           <IconButton
-                            aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                            icon={showConfirmPassword ? <BiShowAlt /> : <BiShow />}
+                            aria-label={
+                              showPassword ? "Hide password" : "Show password"
+                            }
+                            icon={showPassword ? <BiShow /> : <BiSearchAlt />}
                             variant="ghost"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            onClick={() => setShowPassword(!showPassword)}
                           />
                         </InputRightElement>
                       </InputGroup>
-                      <FormErrorMessage>{errors.confirmPassword}</FormErrorMessage>
-                    </FormControl>
-                  </Collapse>
+                      <FormErrorMessage>{errors.password}</FormErrorMessage>
 
-                  {/* Submit Button */}
+                      {/* Password Strength Indicator (Sign up only) */}
+                      <Collapse
+                        in={mode === "signup" && password.length > 0}
+                        animateOpacity
+                      >
+                        <VStack spacing={1} mt={2}>
+                          <Progress
+                            value={passwordStrength}
+                            size="sm"
+                            w="full"
+                            colorScheme={getPasswordStrengthColor()}
+                            rounded="full"
+                          />
+                          <Text
+                            fontSize="xs"
+                            color="gray.500"
+                            w="full"
+                            textAlign="left"
+                          >
+                            Password strength:{" "}
+                            {passwordStrength < 25
+                              ? "Weak"
+                              : passwordStrength < 50
+                              ? "Fair"
+                              : passwordStrength < 75
+                              ? "Good"
+                              : "Strong"}
+                          </Text>
+                        </VStack>
+                      </Collapse>
+                    </FormControl>
+
+                    {/* Confirm Password (Sign up only) */}
+                    <Collapse in={mode === "signup"} animateOpacity>
+                      <FormControl isInvalid={!!errors.confirmPassword}>
+                        <FormLabel
+                          fontSize="sm"
+                          fontWeight="medium"
+                          color="gray.700"
+                        >
+                          Confirm Password
+                        </FormLabel>
+                        <InputGroup>
+                          <Input
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="Confirm your password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            size="lg"
+                            focusBorderColor={accentColor}
+                            bg={inputBg}
+                            pl={10}
+                          />
+                          <InputRightElement h="full">
+                            <IconButton
+                              aria-label={
+                                showConfirmPassword
+                                  ? "Hide password"
+                                  : "Show password"
+                              }
+                              icon={
+                                showConfirmPassword ? <BiShowAlt /> : <BiShow />
+                              }
+                              variant="ghost"
+                              onClick={() =>
+                                setShowConfirmPassword(!showConfirmPassword)
+                              }
+                            />
+                          </InputRightElement>
+                        </InputGroup>
+                        <FormErrorMessage>
+                          {errors.confirmPassword}
+                        </FormErrorMessage>
+                      </FormControl>
+                    </Collapse>
+
+                    {/* Submit Button */}
+                    <Button
+                      type="submit"
+                      colorScheme="blue"
+                      size="lg"
+                      w="full"
+                      isLoading={loading}
+                      loadingText={
+                        mode === "signup"
+                          ? "Creating Account..."
+                          : "Signing In..."
+                      }
+                      rightIcon={<FiArrowRight />}
+                      bgGradient="linear(to-r, blue.500, purple.500)"
+                      _hover={{
+                        transform: "translateY(-2px)",
+                        shadow: "lg",
+                        bgGradient: "linear(to-r, blue.600, purple.600)",
+                      }}
+                      _active={{
+                        transform: "translateY(0)",
+                      }}
+                      transition="all 0.2s"
+                      mt={2}
+                    >
+                      {mode === "signup" ? "Create Account" : "Sign In"}
+                    </Button>
+                  </VStack>
+
+                  {/* Divider */}
+                  <HStack>
+                    <Divider />
+                    <Text fontSize="sm" color="gray.400" px={2}>
+                      OR
+                    </Text>
+                    <Divider />
+                  </HStack>
+
+                  {/* Google Sign-In */}
                   <Button
-                    type="submit"
-                    colorScheme="blue"
-                    size="lg"
+                    onClick={signInWithGoogle}
                     w="full"
+                    variant="outline"
+                    size="lg"
+                    display="flex"
+                    alignItems="center"
+                    gap={3}
                     isLoading={loading}
-                    loadingText={mode === "signup" ? "Creating Account..." : "Signing In..."}
-                    rightIcon={<FiArrowRight />}
-                    bgGradient="linear(to-r, blue.500, purple.500)"
                     _hover={{
-                      transform: "translateY(-2px)",
-                      shadow: "lg",
-                      bgGradient: "linear(to-r, blue.600, purple.600)",
-                    }}
-                    _active={{
-                      transform: "translateY(0)",
+                      transform: "translateY(-1px)",
+                      shadow: "md",
                     }}
                     transition="all 0.2s"
-                    mt={2}
                   >
-                    {mode === "signup" ? "Create Account" : "Sign In"}
+                    <ChakraImage
+                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/2048px-Google_%22G%22_logo.svg.png"
+                      alt="Google"
+                      w={5}
+                      h={5}
+                    />
+                    Continue with Google
                   </Button>
-                </VStack>
 
-                {/* Divider */}
-                <HStack>
-                  <Divider />
-                  <Text fontSize="sm" color="gray.400" px={2}>OR</Text>
-                  <Divider />
-                </HStack>
-
-                {/* Google Sign-In */}
-                <Button
-                  onClick={signInWithGoogle}
-                  w="full"
-                  variant="outline"
-                  size="lg"
-                  display="flex"
-                  alignItems="center"
-                  gap={3}
-                  isLoading={loading}
-                  _hover={{
-                    transform: "translateY(-1px)",
-                    shadow: "md",
-                  }}
-                  transition="all 0.2s"
-                >
-                  <ChakraImage 
-                    src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/2048px-Google_%22G%22_logo.svg.png" 
-                    alt="Google" 
-                    w={5} 
-                    h={5} 
-                  />
-                  Continue with Google
-                </Button>
-
-                {/* Mode Toggle */}
-                <Text textAlign="center" fontSize="sm" color={mutedText}>
-                  {mode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
-                  <Box
-                    as="span"
-                    color={accentColor}
-                    fontWeight="semibold"
-                    cursor="pointer"
-                    onClick={() => switchMode(mode === "signup" ? "signin" : "signup")}
-                    _hover={{ textDecoration: "underline" }}
-                  >
-                    {mode === "signup" ? "Sign in" : "Create account"}
-                  </Box>
-                </Text>
-
-                {/* Additional Info */}
-                <Alert status="info" rounded="lg" fontSize="sm">
-                  <AlertIcon />
-                  <Box>
-                    <Text fontWeight="medium">
-                      {mode === "signup" ? "Start learning today" : "Continue your journey"}
-                    </Text>
-                    <Text fontSize="xs">
-                      {mode === "signup" 
-                        ? "Access all courses, track progress, and join our community"
-                        : "Pick up where you left off and achieve your learning goals"
+                  {/* Mode Toggle */}
+                  <Text textAlign="center" fontSize="sm" color={mutedText}>
+                    {mode === "signup"
+                      ? "Already have an account?"
+                      : "Don't have an account?"}{" "}
+                    <Box
+                      as="span"
+                      color={accentColor}
+                      fontWeight="semibold"
+                      cursor="pointer"
+                      onClick={() =>
+                        switchMode(mode === "signup" ? "signin" : "signup")
                       }
-                    </Text>
-                  </Box>
-                </Alert>
-              </VStack>
-            </CardBody>
-          </Card>
-        </ScaleFade>
-      </Box>
-    </Layout>
+                      _hover={{ textDecoration: "underline" }}
+                    >
+                      {mode === "signup" ? "Sign in" : "Create account"}
+                    </Box>
+                  </Text>
+
+                  {/* Additional Info */}
+                  <Alert status="info" rounded="lg" fontSize="sm">
+                    <AlertIcon />
+                    <Box>
+                      <Text fontWeight="medium">
+                        {mode === "signup"
+                          ? "Start learning today"
+                          : "Continue your journey"}
+                      </Text>
+                      <Text fontSize="xs">
+                        {mode === "signup"
+                          ? "Access all courses, track progress, and join our community"
+                          : "Pick up where you left off and achieve your learning goals"}
+                      </Text>
+                    </Box>
+                  </Alert>
+                </VStack>
+              </CardBody>
+            </Card>
+          </ScaleFade>
+        </Box>
+      </Layout>
+    </>
   );
 }
 
