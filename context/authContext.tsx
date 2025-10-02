@@ -1,28 +1,19 @@
-// context/authContext.tsx
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '@chakra-ui/react';
-
-interface Profile {
-  id: string;
-  email: string;
-  full_name: string;
-  avatar_url: string;
-  is_admin: boolean;
-  created_at: string;
-  updated_at: string;
-}
+import { UserProfile, AuthError } from '@/types/auth';
 
 interface AuthContextType {
   user: User | null;
-  profile: Profile | null;
+  profile: UserProfile | null;
   loading: boolean;
+  isInitialized: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
-  recoverSession: () => Promise<void>;
+  recoverSession: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,32 +30,71 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Error handler for auth operations
+const handleAuthError = (error: any, toast: any, operation: string) => {
+  console.error(`Auth ${operation} error:`, error);
+  
+  let message = 'An unexpected error occurred';
+  let description = error.message || 'Please try again later';
+
+  // Common Supabase auth errors
+  if (error.message?.includes('Invalid login credentials')) {
+    message = 'Invalid credentials';
+    description = 'Please check your email and password';
+  } else if (error.message?.includes('Email not confirmed')) {
+    message = 'Email not verified';
+    description = 'Please check your email to verify your account';
+  } else if (error.message?.includes('User already registered')) {
+    message = 'Account exists';
+    description = 'An account with this email already exists';
+  } else if (error.message?.includes('Email rate limit exceeded')) {
+    message = 'Too many attempts';
+    description = 'Please wait a few minutes before trying again';
+  }
+
+  toast({
+    title: message,
+    description,
+    status: 'error',
+    duration: 5000,
+    isClosable: true,
+    position: 'top-right',
+  });
+
+  return { message, description };
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const toast = useToast();
 
-  // Create or update user profile
-  const createUserProfile = async (user: User) => {
+  // Safe profile creation with null checks
+  const createUserProfile = useCallback(async (userData: User) => {
+    if (!userData?.id) {
+      console.error('Cannot create profile: User ID is missing');
+      return;
+    }
+
     try {
+      // Check if profile already exists
       const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', userData.id)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
-      // If profile doesn't exist, create one
-      if (!existingProfile) {
+      // Profile doesn't exist, create one
+      if (fetchError?.code === 'PGRST116') {
         const profileData = {
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-          avatar_url: user.user_metadata?.avatar_url || '',
+          id: userData.id,
+          email: userData.email,
+          full_name: userData.user_metadata?.full_name || 
+                    userData.email?.split('@')[0] || 
+                    'User',
+          avatar_url: userData.user_metadata?.avatar_url || '',
           is_admin: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -74,25 +104,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .from('profiles')
           .insert(profileData);
 
-        if (insertError) throw insertError;
-
-        setProfile(profileData as Profile);
+        if (insertError) {
+          if (insertError.code !== '23505') { // Ignore duplicate key errors
+            throw insertError;
+          }
+        } else {
+          setProfile(profileData as UserProfile);
+        }
+      } else if (fetchError) {
+        throw fetchError;
       } else {
         setProfile(existingProfile);
       }
     } catch (error: any) {
-      console.error('Error creating/updating profile:', error);
-      toast({
-        title: 'Error creating profile',
-        description: error.message,
-        status: 'error',
-        duration: 3000,
-      });
+      handleAuthError(error, toast, 'profile creation');
     }
-  };
+  }, [toast]);
 
-  // Fetch user profile
-  const fetchUserProfile = async (userId: string) => {
+  // Fetch user profile with error handling
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    if (!userId) {
+      console.error('Cannot fetch profile: User ID is missing');
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -112,106 +147,185 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setProfile(data);
     } catch (error: any) {
       console.error('Error fetching profile:', error);
+      // Don't show toast for profile fetch errors to avoid spam
     }
-  };
+  }, [createUserProfile, user]);
 
-  const refreshProfile = async () => {
-    if (user) {
+  const refreshProfile = useCallback(async () => {
+    if (user?.id) {
       await fetchUserProfile(user.id);
     }
-  };
+  }, [user, fetchUserProfile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
-      await supabase.auth.signOut();
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      setProfile(null);
     } catch (error: any) {
-      console.error('Error signing out:', error);
+      handleAuthError(error, toast, 'sign out');
       throw error;
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [toast]);
 
   // Session recovery function
-  const recoverSession = async () => {
+  const recoverSession = useCallback(async (): Promise<boolean> => {
     try {
       setLoading(true);
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) throw error;
       
-      if (session) {
+      if (session?.user) {
         setUser(session.user);
         await fetchUserProfile(session.user.id);
         console.log('Session recovered successfully');
+        return true;
       }
+      
+      return false;
     } catch (error: any) {
       console.error('Session recovery failed:', error);
+      return false;
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchUserProfile]);
+
+  // Initialize auth state
+  const initializeAuth = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('Error getting session:', error);
+        return;
+      }
+
+      if (session?.user) {
+        setUser(session.user);
+        await fetchUserProfile(session.user.id);
+        
+        // Show email confirmation reminder if needed
+        if (!session.user.email_confirmed_at) {
+          toast({
+            title: 'Email verification required',
+            description: 'Please check your email to verify your account for full access.',
+            status: 'warning',
+            duration: 6000,
+            isClosable: true,
+            position: 'top-right',
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Auth initialization error:', error);
+    } finally {
+      setLoading(false);
+      setIsInitialized(true);
+    }
+  }, [fetchUserProfile, toast]);
+
+  // Auth state change handler
+  const handleAuthStateChange = useCallback(async (event: string, session: Session | null) => {
+    console.log('Auth state changed:', event);
+    
+    setUser(session?.user ?? null);
+    
+    if (session?.user) {
+      await fetchUserProfile(session.user.id);
+      
+      // Handle different auth events
+      switch (event) {
+        case 'SIGNED_IN':
+          const isNewUser = session.user.identities?.[0]?.created_at === 
+                           session.user.identities?.[0]?.updated_at;
+          
+          if (isNewUser && !session.user.email_confirmed_at) {
+            toast({
+              title: 'Welcome! Verify your email',
+              description: 'We sent a verification link to your email address.',
+              status: 'info',
+              duration: 8000,
+              isClosable: true,
+              position: 'top-right',
+            });
+          } else if (!session.user.email_confirmed_at) {
+            toast({
+              title: 'Email verification required',
+              description: 'Please verify your email for full access.',
+              status: 'warning',
+              duration: 6000,
+              isClosable: true,
+            });
+          }
+          break;
+          
+        case 'USER_UPDATED':
+          if (session.user.email_confirmed_at) {
+            toast({
+              title: 'Email verified!',
+              description: 'Your email has been successfully verified.',
+              status: 'success',
+              duration: 4000,
+              isClosable: true,
+            });
+          }
+          break;
+          
+        case 'SIGNED_OUT':
+          setProfile(null);
+          toast({
+            title: 'Signed out successfully',
+            status: 'success',
+            duration: 3000,
+            isClosable: true,
+          });
+          break;
+      }
+    } else {
+      setProfile(null);
+    }
+    
+    setLoading(false);
+  }, [fetchUserProfile, toast]);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-      setLoading(false);
-    });
+    initializeAuth();
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        await fetchUserProfile(session.user.id);
-        
-        // Show toast for email confirmation
-        if (event === 'SIGNED_IN') {
-          const isNewUser = session.user.identities?.[0]?.created_at === session.user.identities?.[0]?.updated_at;
-          
-          if (isNewUser && !session.user.email_confirmed_at) {
-            toast({
-              title: 'Email confirmation required',
-              description: 'Please check your email to confirm your account.',
-              status: 'warning',
-              duration: 5000,
-              isClosable: true,
-            });
-          }
-        }
-      } else {
-        setProfile(null);
-      }
-      
-      setLoading(false);
-    });
+    } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [initializeAuth, handleAuthStateChange]);
 
-  // Check for session recovery on mount
+  // Session recovery on mount
   useEffect(() => {
-    const checkStoredSession = async () => {
-      const storedSession = localStorage.getItem('supabase.auth.token');
-      if (storedSession && !user && !loading) {
+    const attemptSessionRecovery = async () => {
+      const hasStoredSession = localStorage.getItem('supabase.auth.token');
+      if (hasStoredSession && !user && !loading && isInitialized) {
         console.log('Attempting session recovery...');
         await recoverSession();
       }
     };
 
-    checkStoredSession();
-  }, []);
+    const timer = setTimeout(attemptSessionRecovery, 1000);
+    return () => clearTimeout(timer);
+  }, [user, loading, isInitialized, recoverSession]);
 
   const value = {
     user,
     profile,
     loading,
+    isInitialized,
     refreshProfile,
     signOut,
     recoverSession,

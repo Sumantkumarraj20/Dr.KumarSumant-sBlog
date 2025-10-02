@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import Layout from "../components/Layout";
 import { useAuth } from "../context/authContext";
 import { supabase } from "../lib/supabaseClient";
@@ -41,14 +41,11 @@ import {
   validateImageFile,
 } from "@/lib/cloudinary";
 import SEO from "@/components/Seo";
+import { UserProfile } from "@/types/auth";
 
-interface ProfileData {
-  id: string;
-  email: string;
+interface ProfileFormData {
   full_name: string;
-  avatar_url: string;
-  is_admin: boolean;
-  created_at: string;
+  email: string;
 }
 
 export default function ProfilePage() {
@@ -59,8 +56,6 @@ export default function ProfilePage() {
     refreshProfile,
     signOut,
   } = useAuth();
-  const [profileData, setProfileData] = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -70,13 +65,13 @@ export default function ProfilePage() {
   const toast = useToast();
   const router = useRouter();
 
-  // Color values
+  // Memoized color values
   const cardBg = useColorModeValue("white", "gray.700");
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const mutedText = useColorModeValue("gray.600", "gray.400");
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProfileFormData>({
     full_name: "",
     email: "",
   });
@@ -84,7 +79,6 @@ export default function ProfilePage() {
   // Initialize form data from profile
   useEffect(() => {
     if (profile) {
-      setProfileData(profile as ProfileData);
       setFormData({
         full_name: profile.full_name || "",
         email: profile.email || user?.email || "",
@@ -93,17 +87,15 @@ export default function ProfilePage() {
   }, [profile, user]);
 
   // Handle input changes
-  const handleInputChange = useCallback((field: string, value: string) => {
+  const handleInputChange = useCallback((field: keyof ProfileFormData, value: string) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
   }, []);
 
-  // In your ProfilePage.tsx - update the handleImageUpload function
-  const handleImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  // Image upload handler
+  const handleImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
@@ -123,18 +115,18 @@ export default function ProfilePage() {
       setUploading(true);
 
       // Delete old image if exists
-      if (profileData?.avatar_url) {
-        await deleteOldProfileImage(profileData.avatar_url);
+      if (profile?.avatar_url) {
+        await deleteOldProfileImage(profile.avatar_url);
       }
 
-      // Upload new image - now returns just the URL string
+      // Upload new image
       const imageUrl = await uploadProfileImage(file, user.id);
 
       // Update profile with new avatar URL
       const { error } = await supabase
         .from("profiles")
         .update({
-          avatar_url: imageUrl, // Use the returned URL directly
+          avatar_url: imageUrl,
           updated_at: new Date().toISOString(),
         })
         .eq("id", user.id);
@@ -163,10 +155,10 @@ export default function ProfilePage() {
         fileInputRef.current.value = "";
       }
     }
-  };
+  }, [user, profile, refreshProfile, toast]);
 
   // Save profile changes
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!user) return;
 
     setSaving(true);
@@ -205,19 +197,19 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [user, formData, refreshProfile, toast]);
 
   // Cancel editing
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setFormData({
-      full_name: profileData?.full_name || "",
-      email: profileData?.email || user?.email || "",
+      full_name: profile?.full_name || "",
+      email: profile?.email || user?.email || "",
     });
     setIsEditing(false);
-  };
+  }, [profile, user]);
 
   // Handle sign out
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     setSigningOut(true);
     try {
       await signOut();
@@ -232,10 +224,23 @@ export default function ProfilePage() {
       });
       setSigningOut(false);
     }
-  };
+  }, [signOut, router, toast]);
 
-  // Show email confirmation alert if needed
-  const showEmailConfirmationAlert = user && !user.email_confirmed_at;
+  // Memoized computed values
+  const showEmailConfirmationAlert = useMemo(() => 
+    user && !user.email_confirmed_at, [user]);
+
+  const memberSince = useMemo(() => 
+    profile?.created_at
+      ? new Date(profile.created_at).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : "Unknown", [profile]);
+
+  const avatarName = useMemo(() => 
+    formData.full_name || user?.email || "User", [formData.full_name, user]);
 
   // Loading state
   if (authLoading) {
@@ -272,14 +277,6 @@ export default function ProfilePage() {
       </>
     );
   }
-
-  const memberSince = profileData?.created_at
-    ? new Date(profileData.created_at).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-    : "Unknown";
 
   return (
     <>
@@ -318,8 +315,8 @@ export default function ProfilePage() {
                       <Box position="relative">
                         <Avatar
                           size="2xl"
-                          src={profileData?.avatar_url}
-                          name={formData.full_name || user.email}
+                          src={profile?.avatar_url}
+                          name={avatarName}
                           icon={<UserCircleIcon className="w-16 h-16" />}
                         />
                         <IconButton
@@ -358,7 +355,7 @@ export default function ProfilePage() {
                         >
                           {user.email}
                         </Text>
-                        {profileData?.is_admin && (
+                        {profile?.is_admin && (
                           <Badge colorScheme="purple" mt={1}>
                             Administrator
                           </Badge>
