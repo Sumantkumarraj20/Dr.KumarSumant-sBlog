@@ -100,7 +100,72 @@ const Icon = (IconComp: any, props: any = {}) => (
   <ChakraBox as={IconComp} {...props} />
 );
 
-// Custom hook for state persistence
+// Custom hook for temporary form persistence (auto-save while writing)
+function useTemporaryFormPersistence<T>(key: string, defaultValue: T, selectedNode: SelectedNode) {
+  const [state, setState] = useState<T>(() => {
+    if (typeof window === 'undefined') return defaultValue;
+    
+    try {
+      // Only load temporary data if we have a selected node
+      if (selectedNode) {
+        const storageKey = `temp-${selectedNode.type}-${selectedNode.id}-${key}`;
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          console.log(`Loading temporary data for ${storageKey}`);
+          return JSON.parse(stored);
+        }
+      }
+      return defaultValue;
+    } catch (error) {
+      console.warn(`Error loading temporary state for ${key}:`, error);
+      return defaultValue;
+    }
+  });
+
+  const setPersistedState = useCallback((value: T | ((prev: T) => T)) => {
+    setState(prev => {
+      const newValue = typeof value === 'function' ? (value as Function)(prev) : value;
+      
+      // Auto-save to temporary storage whenever state changes
+      if (selectedNode && typeof window !== 'undefined') {
+        try {
+          const storageKey = `temp-${selectedNode.type}-${selectedNode.id}-${key}`;
+          localStorage.setItem(storageKey, JSON.stringify(newValue));
+          console.log(`Auto-saved temporary data for ${storageKey}`);
+        } catch (error) {
+          console.warn(`Error saving temporary state for ${key}:`, error);
+        }
+      }
+      
+      return newValue;
+    });
+  }, [key, selectedNode]);
+
+  // Clear temporary data when selected node changes
+  useEffect(() => {
+    if (selectedNode) {
+      // Load temporary data for the new selected node
+      try {
+        const storageKey = `temp-${selectedNode.type}-${selectedNode.id}-${key}`;
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          console.log(`Loading temporary data for new selection: ${storageKey}`);
+          setState(JSON.parse(stored));
+        } else {
+          // No temporary data found, use defaultValue
+          setState(defaultValue);
+        }
+      } catch (error) {
+        console.warn(`Error loading temporary state on node change:`, error);
+        setState(defaultValue);
+      }
+    }
+  }, [selectedNode, key, defaultValue]);
+
+  return [state, setPersistedState] as const;
+}
+
+// Custom hook for UI state persistence (expanded states, selection)
 function usePersistedState<T>(key: string, defaultValue: T) {
   const [state, setState] = useState<T>(() => {
     if (typeof window === 'undefined') return defaultValue;
@@ -207,6 +272,24 @@ const SafeRichTextEditor = React.memo(({
 
 SafeRichTextEditor.displayName = 'SafeRichTextEditor';
 
+// Helper to clear all temporary data for a node
+const clearTemporaryData = (node: SelectedNode) => {
+  if (!node || typeof window === 'undefined') return;
+  
+  const prefixes = [
+    'courseTitle', 'courseDescription', 'moduleTitle', 'unitTitle', 
+    'lessonTitle', 'lessonOrder', 'lessonContent', 'newQuestionText',
+    'newOptions', 'newCorrect', 'newExplanation'
+  ];
+  
+  prefixes.forEach(prefix => {
+    const key = `temp-${node.type}-${node.id}-${prefix}`;
+    localStorage.removeItem(key);
+  });
+  
+  console.log(`Cleared temporary data for ${node.type}-${node.id}`);
+};
+
 // Main component
 export default function CoursesAdmin() {
   const toast = useToast();
@@ -218,26 +301,26 @@ export default function CoursesAdmin() {
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
 
-  // UI state
+  // UI state - persisted
   const [expandedById, setExpandedById] = usePersistedState<Record<string, boolean>>("admin-expanded", {});
   const [selected, setSelected] = usePersistedState<SelectedNode>("admin-selected", null);
 
-  // Form states
-  const [courseTitle, setCourseTitle] = usePersistedState("admin-course-title", "");
-  const [courseDescription, setCourseDescription] = usePersistedState("admin-course-desc", "");
-  const [moduleTitle, setModuleTitle] = usePersistedState("admin-module-title", "");
-  const [unitTitle, setUnitTitle] = usePersistedState("admin-unit-title", "");
-  const [lessonTitle, setLessonTitle] = usePersistedState("admin-lesson-title", "");
-  const [lessonOrder, setLessonOrder] = usePersistedState("admin-lesson-order", 0);
+  // Form states - TEMPORARILY persisted (auto-saved while writing)
+  const [courseTitle, setCourseTitle] = useTemporaryFormPersistence("courseTitle", "", selected);
+  const [courseDescription, setCourseDescription] = useTemporaryFormPersistence("courseDescription", "", selected);
+  const [moduleTitle, setModuleTitle] = useTemporaryFormPersistence("moduleTitle", "", selected);
+  const [unitTitle, setUnitTitle] = useTemporaryFormPersistence("unitTitle", "", selected);
+  const [lessonTitle, setLessonTitle] = useTemporaryFormPersistence("lessonTitle", "", selected);
+  const [lessonOrder, setLessonOrder] = useTemporaryFormPersistence("lessonOrder", 0, selected);
 
-  // Rich text content states
-  const [lessonContent, setLessonContent] = usePersistedState<JSONContent>("admin-lesson-content", EMPTY_DOC);
-  const [newQuestionText, setNewQuestionText] = usePersistedState<JSONContent>("admin-question-text", EMPTY_DOC);
-  const [newExplanation, setNewExplanation] = usePersistedState<JSONContent>("admin-explanation", EMPTY_DOC);
+  // Rich text content states - TEMPORARILY persisted
+  const [lessonContent, setLessonContent] = useTemporaryFormPersistence<JSONContent>("lessonContent", EMPTY_DOC, selected);
+  const [newQuestionText, setNewQuestionText] = useTemporaryFormPersistence<JSONContent>("newQuestionText", EMPTY_DOC, selected);
+  const [newExplanation, setNewExplanation] = useTemporaryFormPersistence<JSONContent>("newExplanation", EMPTY_DOC, selected);
 
-  // Quiz form states
-  const [newOptions, setNewOptions] = usePersistedState<string[]>("admin-options", DEFAULT_OPTIONS);
-  const [newCorrect, setNewCorrect] = usePersistedState<number[]>("admin-correct", []);
+  // Quiz form states - TEMPORARILY persisted
+  const [newOptions, setNewOptions] = useTemporaryFormPersistence<string[]>("newOptions", DEFAULT_OPTIONS, selected);
+  const [newCorrect, setNewCorrect] = useTemporaryFormPersistence<number[]>("newCorrect", [], selected);
 
   // Unsaved changes state
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -248,25 +331,16 @@ export default function CoursesAdmin() {
     setHasUnsavedChanges(hasChanges);
   }, []);
 
-  // Reset all form states
+  // Reset all form states and clear temporary data
   const resetFormStates = useCallback(() => {
-    setCourseTitle("");
-    setCourseDescription("");
-    setModuleTitle("");
-    setUnitTitle("");
-    setLessonTitle("");
-    setLessonOrder(0);
-    setLessonContent(EMPTY_DOC);
-    setNewQuestionText(EMPTY_DOC);
-    setNewOptions(DEFAULT_OPTIONS);
-    setNewCorrect([]);
-    setNewExplanation(EMPTY_DOC);
+    if (selected) {
+      clearTemporaryData(selected);
+    }
+    
+    // These will automatically reset due to the useTemporaryFormPersistence hook
+    // when selected node changes
     setHasUnsavedChanges(false);
-  }, [
-    setCourseTitle, setCourseDescription, setModuleTitle, setUnitTitle,
-    setLessonTitle, setLessonOrder, setLessonContent, setNewQuestionText,
-    setNewOptions, setNewCorrect, setNewExplanation
-  ]);
+  }, [selected]);
 
   // Helper to safely parse content
   const parseContent = useCallback((content: any): JSONContent => {
@@ -388,24 +462,8 @@ export default function CoursesAdmin() {
     loadCourses();
   }, [loadCourses]);
 
-  // Selection handler
-  const selectNode = useCallback((node: SelectedNode) => {
-    if (hasUnsavedChanges) {
-      setShowConfirm(true);
-      setPendingAction(() => () => {
-        resetFormStates();
-        setSelected(node);
-        loadNodeContent(node);
-      });
-      return;
-    }
-
-    resetFormStates();
-    setSelected(node);
-    loadNodeContent(node);
-  }, [hasUnsavedChanges, resetFormStates, setSelected, setShowConfirm, setPendingAction]);
-
-  const loadNodeContent = useCallback((node: SelectedNode) => {
+  // Load database content when no temporary data exists
+  const loadDatabaseContent = useCallback((node: SelectedNode) => {
     if (!node) return;
 
     try {
@@ -439,11 +497,48 @@ export default function CoursesAdmin() {
           break;
         }
       }
+      setHasUnsavedChanges(false);
     } catch (error) {
       console.error("Error loading selected node:", error);
       toast({ title: "Error loading content", status: "error" });
     }
   }, [treeFinders, setCourseTitle, setCourseDescription, setModuleTitle, setUnitTitle, setLessonTitle, setLessonOrder, setLessonContent, parseContent, toast]);
+
+  // Check if temporary data exists for current selection
+  const hasTemporaryData = useCallback(() => {
+    if (!selected || typeof window === 'undefined') return false;
+    
+    try {
+      const testKey = `temp-${selected.type}-${selected.id}-${selected.type}Title`;
+      return localStorage.getItem(testKey) !== null;
+    } catch {
+      return false;
+    }
+  }, [selected]);
+
+  // Selection handler
+  const selectNode = useCallback((node: SelectedNode) => {
+    if (hasUnsavedChanges && selected && selected.id !== node?.id) {
+      setShowConfirm(true);
+      setPendingAction(() => () => {
+        resetFormStates();
+        setSelected(node);
+        // Load database content since we're confirming navigation away
+        if (node) {
+          setTimeout(() => loadDatabaseContent(node), 100);
+        }
+      });
+      return;
+    }
+
+    resetFormStates();
+    setSelected(node);
+    
+    // Load database content only if no temporary data exists
+    if (node && !hasTemporaryData()) {
+      setTimeout(() => loadDatabaseContent(node), 100);
+    }
+  }, [hasUnsavedChanges, selected, resetFormStates, setSelected, setShowConfirm, setPendingAction, hasTemporaryData, loadDatabaseContent]);
 
   // UI handlers
   const toggleExpand = useCallback((id: string) => {
@@ -466,6 +561,15 @@ export default function CoursesAdmin() {
   const handleLessonOrderChange = createChangeHandler(setLessonOrder);
   const handleLessonContentChange = createChangeHandler(setLessonContent);
 
+  // Clear temporary data button handler
+  const handleClearTemporaryData = useCallback(() => {
+    if (selected) {
+      clearTemporaryData(selected);
+      loadDatabaseContent(selected);
+      toast({ title: "Temporary data cleared", status: "info" });
+    }
+  }, [selected, loadDatabaseContent, toast]);
+
   // CRUD Operations
   const handleCreateCourse = useCallback(async () => {
     const title = prompt("New course title");
@@ -486,6 +590,9 @@ export default function CoursesAdmin() {
     try {
       const updated = await unwrap(updateCourse(selected.id, { title: courseTitle, description: courseDescription }));
       updateCourseTree(prev => prev.map(c => c.id === updated.id ? { ...updated, modules: updated.modules || [] } : c));
+      
+      // Clear temporary data after successful save
+      clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Course updated", status: "success" });
     } catch (err: any) {
@@ -500,6 +607,7 @@ export default function CoursesAdmin() {
       await deleteCourse(id);
       updateCourseTree(prev => prev.filter(c => c.id !== id));
       if (selected?.type === "course" && selected.id === id) {
+        clearTemporaryData(selected);
         setSelected(null);
         resetFormStates();
       }
@@ -547,6 +655,9 @@ export default function CoursesAdmin() {
         ...c,
         modules: c.modules.map(m => m.id === updated.id ? { ...updated, units: updated.units || [] } : m)
       })));
+      
+      // Clear temporary data after successful save
+      clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Module updated", status: "success" });
     } catch (err: any) {
@@ -563,7 +674,10 @@ export default function CoursesAdmin() {
         ...c,
         modules: (c.modules || []).filter(m => m.id !== id)
       })));
-      if (selected?.type === "module" && selected.id === id) setSelected(null);
+      if (selected?.type === "module" && selected.id === id) {
+        clearTemporaryData(selected);
+        setSelected(null);
+      }
       toast({ title: "Module deleted", status: "info" });
     } catch (err: any) {
       toast({ title: "Error deleting module", description: String(err), status: "error" });
@@ -628,6 +742,9 @@ export default function CoursesAdmin() {
           ),
         })),
       })));
+      
+      // Clear temporary data after successful save
+      clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Unit updated", status: "success" });
     } catch (err: any) {
@@ -647,7 +764,10 @@ export default function CoursesAdmin() {
           units: (m.units || []).filter(u => u.id !== id),
         })),
       })));
-      if (selected?.type === "unit" && selected.id === id) setSelected(null);
+      if (selected?.type === "unit" && selected.id === id) {
+        clearTemporaryData(selected);
+        setSelected(null);
+      }
       toast({ title: "Unit deleted", status: "info" });
     } catch (err: any) {
       toast({ title: "Error deleting unit", description: String(err), status: "error" });
@@ -722,6 +842,8 @@ export default function CoursesAdmin() {
         }))
       })));
 
+      // Clear temporary data after successful save
+      clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Lesson saved", status: "success" });
     } catch (err: any) {
@@ -745,7 +867,10 @@ export default function CoursesAdmin() {
           })),
         })),
       })));
-      if (selected?.type === "lesson" && selected.id === id) setSelected(null);
+      if (selected?.type === "lesson" && selected.id === id) {
+        clearTemporaryData(selected);
+        setSelected(null);
+      }
       toast({ title: "Lesson deleted", status: "info" });
     } catch (err: any) {
       toast({ title: "Error deleting lesson", description: String(err), status: "error" });
@@ -853,7 +978,7 @@ export default function CoursesAdmin() {
         })),
       })));
 
-      // Reset form
+      // Reset form (but don't clear temporary data since we're still in the same lesson)
       setNewQuestionText(EMPTY_DOC);
       setNewOptions(DEFAULT_OPTIONS);
       setNewCorrect([]);
@@ -1115,6 +1240,7 @@ export default function CoursesAdmin() {
             <HStack mt={3}>
               <Button colorScheme="blue" onClick={handleSaveCourse}>Save</Button>
               <Button colorScheme="red" onClick={() => handleDeleteCourse(selected.id)}>Delete</Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
             </HStack>
             <Divider my={4} />
             <Text fontWeight="semibold">Modules ({course?.modules?.length || 0})</Text>
@@ -1134,6 +1260,7 @@ export default function CoursesAdmin() {
             <HStack mt={3}>
               <Button colorScheme="blue" onClick={handleSaveModule}>Save</Button>
               <Button colorScheme="red" onClick={() => handleDeleteModule(selected.id)}>Delete</Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
             </HStack>
             <Divider my={4} />
             <Text fontWeight="semibold">Units ({module?.module?.units?.length || 0})</Text>
@@ -1153,6 +1280,7 @@ export default function CoursesAdmin() {
             <HStack mt={3}>
               <Button colorScheme="blue" onClick={handleSaveUnit}>Save</Button>
               <Button colorScheme="red" onClick={() => handleDeleteUnit(selected.id)}>Delete</Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
             </HStack>
             <Divider my={4} />
             <Text fontWeight="semibold">Lessons ({unit?.unit?.lessons?.length || 0})</Text>
@@ -1189,6 +1317,7 @@ export default function CoursesAdmin() {
             <HStack mt={3}>
               <Button colorScheme="blue" onClick={handleSaveLesson}>Save Lesson</Button>
               <Button colorScheme="red" onClick={() => handleDeleteLesson(selected.id)}>Delete Lesson</Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
             </HStack>
 
             {/* Quizzes Section */}
@@ -1331,7 +1460,7 @@ export default function CoursesAdmin() {
     handleLessonOrderChange, handleSaveCourse, handleDeleteCourse, handleSaveModule, 
     handleDeleteModule, handleSaveUnit, handleDeleteUnit, handleSaveLesson, 
     handleDeleteLesson, handleAddQuiz, handleDeleteQuiz, handleDeleteQuestion, 
-    handleAddQuestion, trackChanges, parseContent
+    handleAddQuestion, trackChanges, parseContent, handleClearTemporaryData
   ]);
 
   return (
