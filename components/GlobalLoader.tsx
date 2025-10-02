@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Box, Spinner, Text, VStack, useColorModeValue, Progress, HStack } from "@chakra-ui/react";
 
@@ -49,13 +49,11 @@ export function useRouteLoading() {
 }
 
 export default function GlobalLoader() {
- 
-
+  const loading = useRouteLoading(); // This MUST be at the top level
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
   const startRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
-   const loading = useRouteLoading();
   const bg = useColorModeValue("rgba(255,255,255,0.78)", "rgba(8,10,15,0.7)");
 
   // start simulated progress
@@ -97,7 +95,7 @@ export default function GlobalLoader() {
   }, [loading]);
 
   // estimate remaining time in seconds using elapsed / progress
-  const eta = (() => {
+  const eta = useMemo(() => {
     if (!visible || progress <= 0 || progress >= 100 || !startRef.current) return null;
     const elapsed = Date.now() - startRef.current; // ms
     if (progress < 0.5) return null; // avoid noisy estimate
@@ -106,9 +104,12 @@ export default function GlobalLoader() {
     // clamp between 0.2s and 20s for UI sanity
     const sec = Math.max(0.2, Math.min(20, Math.round((remainingMs / 100) * 10) / 10));
     return sec;
-  })();
+  }, [visible, progress]);
 
   if (!visible) return null;
+
+  const contentBg = useColorModeValue("white", "gray.800");
+  const contentTextColor = useColorModeValue("gray.600", "gray.300");
 
   return (
     <Box position="fixed" inset={0} zIndex={60} pointerEvents="none">
@@ -131,11 +132,11 @@ export default function GlobalLoader() {
 
       {/* centered content */}
       <VStack zIndex={70} position="fixed" inset={0} alignItems="center" justifyContent="center" pointerEvents="auto">
-        <HStack spacing={4} alignItems="center" bg={useColorModeValue("white", "gray.800")} px={6} py={4} borderRadius="lg" boxShadow="lg">
+        <HStack spacing={4} alignItems="center" bg={contentBg} px={6} py={4} borderRadius="lg" boxShadow="lg">
           <Spinner size="lg" thickness="4px" color="blue.500" />
           <Box textAlign="left">
             <Text fontWeight="semibold">Loading…</Text>
-            <Text fontSize="sm" color={useColorModeValue("gray.600", "gray.300")}>
+            <Text fontSize="sm" color={contentTextColor}>
               {eta ? `≈ ${eta}s remaining` : "Preparing content…"}
             </Text>
           </Box>

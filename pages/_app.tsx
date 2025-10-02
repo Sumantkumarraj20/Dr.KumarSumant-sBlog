@@ -9,7 +9,6 @@ import { extendTheme } from "@chakra-ui/react";
 import { ChunkErrorBoundary } from "../components/ChunkErrorBoundary";
 import Head from "next/head";
 import "prosemirror-view/style/prosemirror.css";
-import { usePerformance } from "../hooks/usePerformance";
 
 const theme = extendTheme({
   config: {
@@ -28,7 +27,7 @@ const ChunkErrorFallback = () => (
 );
 
 function AppContent({ Component, pageProps }: AppProps) {
-  usePerformance(); // Monitor performance
+
   
   return (
     <ChunkErrorBoundary fallback={<ChunkErrorFallback />}>

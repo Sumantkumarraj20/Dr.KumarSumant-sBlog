@@ -1,3 +1,4 @@
+// Layout.tsx - Updated
 "use client";
 import React from "react";
 import Link from "next/link";
@@ -42,7 +43,6 @@ import {
   Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 import { AnimatePresence, motion } from "framer-motion";
-import { supabase } from "../lib/supabaseClient";
 
 const MotionBox = motion.create ? motion.create(Box) : motion(Box);
 
@@ -53,6 +53,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const routeLoading = useRouteLoading();
 
+  // Your existing color mode values...
   const bgHeader = useColorModeValue("whiteAlpha.900", "gray.800");
   const bgLang = useColorModeValue("gray.100", "gray.700");
   const activeColor = useColorModeValue("blue.600", "blue.400");
@@ -78,21 +79,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { href: "/contact", label: t("contact"), icon: EnvelopeIcon },
   ];
 
-  const { user, loading: authLoading, profile } = useAuth();
-  const [signingOut, setSigningOut] = React.useState(false);
+  const { user, loading: authLoading, profile, signOut } = useAuth(); // Use signOut from context
 
-  const handleSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await supabase.auth.signOut();
-      router.push("/");
-    } finally {
-      setSigningOut(false);
-    }
-  };
-
-  // Check if user is admin
+  // Check if user is admin - use profile data instead of user_metadata
   const isAdmin = profile?.is_admin;
+
+  // Remove the local handleSignOut function and use the one from context
+
   return (
     <>
       <Flex direction="column" minH="100vh" bg={bodyBg} color={textColor}>
@@ -121,7 +114,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             {/* Left: Brand + Mobile Menu */}
             <Flex align="center" gap={4}>
-              {/* Mobile Hamburger - Now on left side */}
+              {/* Mobile Hamburger */}
               <Box display={{ base: "flex", md: "none" }}>
                 <IconButton
                   aria-label="Open menu"
@@ -282,12 +275,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   isDisabled={routeLoading}
                 />
               </Tooltip>
+
+              {/* AuthMenu - Simplified */}
               <AuthMenu
                 user={user}
                 authLoading={authLoading}
-                signingOut={signingOut}
-                isAdmin={user?.user_metadata?.role === "admin"}
-                onSignOut={handleSignOut}
+                isAdmin={isAdmin} // Use the correct isAdmin from profile
+                onSignOut={signOut} // Use the signOut from context
               />
             </Flex>
           </Flex>
@@ -399,7 +393,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                           <Avatar
                             size="sm"
                             name={user.email || "User"}
-                            src={user?.user_metadata?.avatar_url}
+                            src={profile?.avatar_url || user?.user_metadata?.avatar_url}
                           />
                         </HStack>
                         <Button
@@ -418,12 +412,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                           variant="ghost"
                           width="100%"
                           justifyContent="flex-start"
-                          onClick={handleSignOut}
-                          isDisabled={signingOut}
+                          onClick={signOut} // Use context signOut
+                          isDisabled={authLoading}
                           color="red.500"
                           size="lg"
                         >
-                          {signingOut
+                          {authLoading
                             ? "Signing out..."
                             : t("signout") || "Sign out"}
                         </Button>

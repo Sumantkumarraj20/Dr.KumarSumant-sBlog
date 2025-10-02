@@ -38,6 +38,7 @@ import type { Course, Module, Unit, Lesson, UserProgress } from "@/types/learn";
 import { FiAlertCircle, FiBook } from "react-icons/fi";
 import SEO from "@/components/Seo";
 
+
 // Lazy load components with proper error boundaries
 const Dashboard = lazy(() =>
   import("@/components/learning/Dashboard").catch(() => ({

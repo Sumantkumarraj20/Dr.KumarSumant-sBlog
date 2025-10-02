@@ -12,11 +12,11 @@ import {
   Icon,
   Tooltip,
 } from "@chakra-ui/react";
-import { 
-  ComputerDesktopIcon, 
+import {
+  ComputerDesktopIcon,
   ClockIcon,
   BookOpenIcon,
-  CheckCircleIcon 
+  CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import { useState, useEffect, useMemo } from "react";
 
@@ -27,7 +27,13 @@ interface Props {
 }
 
 // Custom circular progress component to avoid external dependency
-const CircularProgress = ({ value, size = 60 }: { value: number; size?: number }) => {
+const CircularProgress = ({
+  value,
+  size = 60,
+}: {
+  value: number;
+  size?: number;
+}) => {
   const strokeWidth = 8;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -39,7 +45,7 @@ const CircularProgress = ({ value, size = 60 }: { value: number; size?: number }
 
   return (
     <Box position="relative" width={`${size}px`} height={`${size}px`}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
         {/* Background track */}
         <circle
           stroke={trackColor}
@@ -61,7 +67,7 @@ const CircularProgress = ({ value, size = 60 }: { value: number; size?: number }
           cx={size / 2}
           cy={size / 2}
           style={{
-            transition: 'stroke-dashoffset 0.5s ease-in-out',
+            transition: "stroke-dashoffset 0.5s ease-in-out",
           }}
         />
       </svg>
@@ -75,11 +81,7 @@ const CircularProgress = ({ value, size = 60 }: { value: number; size?: number }
         alignItems="center"
         justifyContent="center"
       >
-        <Text
-          fontSize="xs"
-          fontWeight="bold"
-          color={textColor}
-        >
+        <Text fontSize="xs" fontWeight="bold" color={textColor}>
           {value}%
         </Text>
       </Flex>
@@ -88,7 +90,13 @@ const CircularProgress = ({ value, size = 60 }: { value: number; size?: number }
 };
 
 // Enhanced progress indicator with multiple states
-const ProgressIndicator = ({ progress, totalModules }: { progress: number; totalModules?: number }) => {
+const ProgressIndicator = ({
+  progress,
+  totalModules,
+}: {
+  progress: number;
+  totalModules?: number;
+}) => {
   const [animatedProgress, setAnimatedProgress] = useState(0);
 
   useEffect(() => {
@@ -115,10 +123,9 @@ const ProgressIndicator = ({ progress, totalModules }: { progress: number; total
   return (
     <VStack spacing={1} align="center">
       <CircularProgress value={animatedProgress} />
-      <Badge 
+      <Badge
         colorScheme={
-          progress === 0 ? "gray" : 
-          progress < 100 ? "blue" : "green"
+          progress === 0 ? "gray" : progress < 100 ? "blue" : "green"
         }
         fontSize="2xs"
         px={2}
@@ -174,10 +181,10 @@ const CoursePage = ({ courses, progressMap, onSelectCourse }: Props) => {
 
   // Memoize processed courses for performance
   const processedCourses = useMemo(() => {
-    return courses.map(course => ({
+    return courses.map((course) => ({
       ...course,
       progress: progressMap[course.id] || 0,
-      moduleCount: course.modules?.length || 0
+      moduleCount: course.modules?.length || 0,
     }));
   }, [courses, progressMap]);
 
@@ -197,20 +204,26 @@ const CoursePage = ({ courses, progressMap, onSelectCourse }: Props) => {
     <Flex direction="column" w="100%" minH="100vh" p={6} bg={gridBg}>
       {/* Header */}
       <VStack spacing={4} mb={8} align="start">
-        <Text fontSize="3xl" fontWeight="bold" bgGradient={useColorModeValue(
-          "linear(to-r, blue.600, purple.600)",
-          "linear(to-r, blue.300, purple.300)"
-        )} bgClip="text">
+        <Text
+          fontSize="3xl"
+          fontWeight="bold"
+          bgGradient={useColorModeValue(
+            "linear(to-r, blue.600, purple.600)",
+            "linear(to-r, blue.300, purple.300)"
+          )}
+          bgClip="text"
+        >
           Learning Courses
         </Text>
         <Text color={descriptionColor} fontSize="lg">
-          {processedCourses.length} course{processedCourses.length !== 1 ? 's' : ''} available
+          {processedCourses.length} course
+          {processedCourses.length !== 1 ? "s" : ""} available
         </Text>
       </VStack>
 
       {/* Courses Grid */}
-      <SimpleGrid 
-        columns={{ base: 1, sm: 2, md: 3, lg: 4 }} 
+      <SimpleGrid
+        columns={{ base: 1, sm: 2, md: 2, lg: 3, xl: 4 }}
         spacing={6}
         w="100%"
       >
@@ -224,38 +237,41 @@ const CoursePage = ({ courses, progressMap, onSelectCourse }: Props) => {
             border="1px solid"
             borderColor={borderColor}
             transition="all 0.3s ease-in-out"
-            _hover={{ 
-              shadow: "xl", 
+            _hover={{
+              shadow: "xl",
               transform: "translateY(-4px)",
               bg: cardHoverBg,
-              borderColor: useColorModeValue("blue.200", "blue.600")
+              borderColor: useColorModeValue("blue.200", "blue.600"),
             }}
             cursor="pointer"
             position="relative"
             onClick={() => onSelectCourse(course)}
             role="group"
+            display="flex"
+            flexDirection="column"
           >
             {/* Completion Badge */}
             {course.progress === 100 && (
-              <Box
-                position="absolute"
-                top={3}
-                right={3}
-                zIndex={1}
-              >
+              <Box position="absolute" top={3} right={3} zIndex={1}>
                 <Tooltip label="Course Completed">
                   <Icon as={CheckCircleIcon} color="green.500" boxSize={5} />
                 </Tooltip>
               </Box>
             )}
 
-            <VStack align="start" spacing={4}>
-              {/* Header with progress */}
-              <HStack justify="space-between" w="100%" align="start">
-                <VStack align="start" spacing={1} flex={1}>
-                  <Text 
-                    fontSize="lg" 
-                    fontWeight="bold" 
+            <VStack align="start" spacing={4} flex="1" w="100%">
+              {/* Header with responsive layout */}
+              <Flex
+                w="100%"
+                justify="space-between"
+                align="flex-start"
+                direction={{ base: "column", md: "row" }}
+                gap={{ base: 2, md: 0 }}
+              >
+                <VStack align="start" spacing={1} flex="1">
+                  <Text
+                    fontSize="lg"
+                    fontWeight="bold"
                     noOfLines={2}
                     lineHeight="short"
                   >
@@ -265,21 +281,24 @@ const CoursePage = ({ courses, progressMap, onSelectCourse }: Props) => {
                     <HStack spacing={1} color={descriptionColor}>
                       <Icon as={BookOpenIcon} boxSize={3} />
                       <Text fontSize="xs">
-                        {course.moduleCount} module{course.moduleCount !== 1 ? 's' : ''}
+                        {course.moduleCount} module
+                        {course.moduleCount !== 1 ? "s" : ""}
                       </Text>
                     </HStack>
                   )}
                 </VStack>
-                <ProgressIndicator 
-                  progress={course.progress} 
-                  totalModules={course.moduleCount}
-                />
-              </HStack>
+                <Box flexShrink={0} mt={{ base: 2, md: 0 }}>
+                  <ProgressIndicator
+                    progress={course.progress}
+                    totalModules={course.moduleCount}
+                  />
+                </Box>
+              </Flex>
 
               {/* Description */}
               {course.description && (
-                <Text 
-                  fontSize="sm" 
+                <Text
+                  fontSize="sm"
                   color={descriptionColor}
                   noOfLines={3}
                   lineHeight="short"
@@ -299,13 +318,14 @@ const CoursePage = ({ courses, progressMap, onSelectCourse }: Props) => {
                   onSelectCourse(course);
                 }}
                 leftIcon={<ComputerDesktopIcon className="h-5 w-5" />}
-                _groupHover={{
-                  transform: "scale(1.02)",
-                }}
+                _groupHover={{ transform: "scale(1.02)" }}
                 transition="all 0.2s"
               >
-                {course.progress === 0 ? "Start Learning" : 
-                 course.progress === 100 ? "Review" : "Continue"}
+                {course.progress === 0
+                  ? "Start Learning"
+                  : course.progress === 100
+                  ? "Review"
+                  : "Continue"}
               </Button>
 
               {/* Progress bar for quick visual */}
@@ -335,11 +355,11 @@ const CoursePage = ({ courses, progressMap, onSelectCourse }: Props) => {
 
       {/* Empty State */}
       {processedCourses.length === 0 && (
-        <Flex 
-          direction="column" 
-          align="center" 
-          justify="center" 
-          py={20} 
+        <Flex
+          direction="column"
+          align="center"
+          justify="center"
+          py={20}
           color={descriptionColor}
         >
           <Icon as={BookOpenIcon} boxSize={16} mb={4} opacity={0.5} />
