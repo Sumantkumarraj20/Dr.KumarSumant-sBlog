@@ -259,7 +259,7 @@ export default function AdminPage() {
 
   return (
     <>
-      <SEO title="Profile" />
+      <SEO title="Admin" />
       <Layout>
         {/* Unsaved Changes Confirmation Dialog */}
         <AlertDialog
