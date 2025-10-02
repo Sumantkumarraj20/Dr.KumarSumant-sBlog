@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   Box,
   Flex,
@@ -50,8 +56,8 @@ import {
   deleteQuiz,
   createQuizQuestion,
   deleteQuizQuestion,
-} from "@/lib/adminApi";
-import { fetchCourseWithContent } from "@/lib/learn";
+  fetchCourseWithContent,
+} from "@/lib/admin-api";
 
 import {
   ChevronDownIcon,
@@ -68,9 +74,18 @@ import {
   Unit,
   Module,
   Course,
-} from "@/lib/adminApi";
+} from "@/types/admin";
 import { JSONContent } from "@tiptap/react";
 import { useAuth } from "@/context/authContext";
+import {
+  safeCourse,
+  safeCourseArray,
+  safeModule,
+  safeUnit,
+  safeLesson,
+  safeQuiz,
+  safeQuizQuestion,
+} from "@/lib/type-utils";
 
 // Types
 type SelectedNode =
@@ -102,18 +117,18 @@ const Icon = (IconComp: any, props: any = {}) => (
 
 // SIMPLIFIED: Custom hook for temporary form persistence (NO INFINITE LOOPS)
 function useTemporaryFormPersistence<T>(
-  key: string, 
-  defaultValue: T, 
+  key: string,
+  defaultValue: T,
   selectedNode: SelectedNode
 ) {
-  const storageKey = selectedNode 
+  const storageKey = selectedNode
     ? `temp-${selectedNode.type}-${selectedNode.id}-${key}`
     : null;
 
   // Initialize state from localStorage only once on mount
   const [state, setState] = useState<T>(() => {
-    if (typeof window === 'undefined' || !storageKey) return defaultValue;
-    
+    if (typeof window === "undefined" || !storageKey) return defaultValue;
+
     try {
       const stored = localStorage.getItem(storageKey);
       return stored ? JSON.parse(stored) : defaultValue;
@@ -144,21 +159,28 @@ function useTemporaryFormPersistence<T>(
   }, [storageKey]); // Only depend on storageKey
 
   // Custom setter that auto-saves to localStorage
-  const setPersistedState = useCallback((value: T | ((prev: T) => T)) => {
-    setState(prev => {
-      const newValue = typeof value === 'function' ? (value as Function)(prev) : value;
-      
-      if (storageKey && typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(newValue));
-        } catch (error) {
-          console.warn(`Error saving temporary state for ${storageKey}:`, error);
+  const setPersistedState = useCallback(
+    (value: T | ((prev: T) => T)) => {
+      setState((prev) => {
+        const newValue =
+          typeof value === "function" ? (value as Function)(prev) : value;
+
+        if (storageKey && typeof window !== "undefined") {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(newValue));
+          } catch (error) {
+            console.warn(
+              `Error saving temporary state for ${storageKey}:`,
+              error
+            );
+          }
         }
-      }
-      
-      return newValue;
-    });
-  }, [storageKey]);
+
+        return newValue;
+      });
+    },
+    [storageKey]
+  );
 
   return [state, setPersistedState] as const;
 }
@@ -166,8 +188,8 @@ function useTemporaryFormPersistence<T>(
 // Custom hook for UI state persistence
 function usePersistedState<T>(key: string, defaultValue: T) {
   const [state, setState] = useState<T>(() => {
-    if (typeof window === 'undefined') return defaultValue;
-    
+    if (typeof window === "undefined") return defaultValue;
+
     try {
       const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : defaultValue;
@@ -176,21 +198,25 @@ function usePersistedState<T>(key: string, defaultValue: T) {
     }
   });
 
-  const setPersistedState = useCallback((value: T | ((prev: T) => T)) => {
-    setState(prev => {
-      const newValue = typeof value === 'function' ? (value as Function)(prev) : value;
-      
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(key, JSON.stringify(newValue));
-        } catch (error) {
-          console.warn(`Error persisting state for ${key}:`, error);
+  const setPersistedState = useCallback(
+    (value: T | ((prev: T) => T)) => {
+      setState((prev) => {
+        const newValue =
+          typeof value === "function" ? (value as Function)(prev) : value;
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(key, JSON.stringify(newValue));
+          } catch (error) {
+            console.warn(`Error persisting state for ${key}:`, error);
+          }
         }
-      }
-      
-      return newValue;
-    });
-  }, [key]);
+
+        return newValue;
+      });
+    },
+    [key]
+  );
 
   return [state, setPersistedState] as const;
 }
@@ -205,12 +231,13 @@ function useUnsavedChanges(hasUnsavedChanges: boolean) {
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+      e.returnValue =
+        "You have unsaved changes. Are you sure you want to leave?";
       return "You have unsaved changes. Are you sure you want to leave?";
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
   const confirmAction = useCallback(() => {
@@ -234,52 +261,65 @@ function useUnsavedChanges(hasUnsavedChanges: boolean) {
 }
 
 // Safe RichTextEditor component
-const SafeRichTextEditor = React.memo(({
-  value,
-  onChange,
-  placeholder = "Start typing...",
-  trackChanges,
-}: {
-  value: JSONContent;
-  onChange: (content: JSONContent) => void;
-  placeholder?: string;
-  trackChanges: (hasChanges: boolean) => void;
-}) => {
-  const safeValue = useMemo(() => {
-    try {
-      return value && typeof value === "object" ? value : EMPTY_DOC;
-    } catch {
-      return EMPTY_DOC;
-    }
-  }, [value]);
+const SafeRichTextEditor = React.memo(
+  ({
+    value,
+    onChange,
+    placeholder = "Start typing...",
+    trackChanges,
+  }: {
+    value: JSONContent;
+    onChange: (content: JSONContent) => void;
+    placeholder?: string;
+    trackChanges: (hasChanges: boolean) => void;
+  }) => {
+    const safeValue = useMemo(() => {
+      try {
+        return value && typeof value === "object" ? value : EMPTY_DOC;
+      } catch {
+        return EMPTY_DOC;
+      }
+    }, [value]);
 
-  const handleChange = useCallback((content: JSONContent) => {
-    onChange(content);
-    trackChanges(true);
-  }, [onChange, trackChanges]);
+    const handleChange = useCallback(
+      (content: JSONContent) => {
+        onChange(content);
+        trackChanges(true);
+      },
+      [onChange, trackChanges]
+    );
 
-  return (
-    <RichTextEditor
-      value={safeValue}
-      onChange={handleChange}
-      placeholder={placeholder}
-    />
-  );
-});
+    return (
+      <RichTextEditor
+        value={safeValue}
+        onChange={handleChange}
+        placeholder={placeholder}
+      />
+    );
+  }
+);
 
-SafeRichTextEditor.displayName = 'SafeRichTextEditor';
+SafeRichTextEditor.displayName = "SafeRichTextEditor";
 
 // Helper to clear all temporary data for a node
 const clearTemporaryData = (node: SelectedNode) => {
-  if (!node || typeof window === 'undefined') return;
-  
+  if (!node || typeof window === "undefined") return;
+
   const prefixes = [
-    'courseTitle', 'courseDescription', 'moduleTitle', 'unitTitle', 
-    'lessonTitle', 'lessonOrder', 'lessonContent', 'newQuestionText',
-    'newOptions', 'newCorrect', 'newExplanation'
+    "courseTitle",
+    "courseDescription",
+    "moduleTitle",
+    "unitTitle",
+    "lessonTitle",
+    "lessonOrder",
+    "lessonContent",
+    "newQuestionText",
+    "newOptions",
+    "newCorrect",
+    "newExplanation",
   ];
-  
-  prefixes.forEach(prefix => {
+
+  prefixes.forEach((prefix) => {
     const key = `temp-${node.type}-${node.id}-${prefix}`;
     localStorage.removeItem(key);
   });
@@ -292,13 +332,21 @@ export default function CoursesAdmin() {
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   // Main data with persistence
-  const [courses, setCourses] = usePersistedState<Course[]>("admin-courses", []);
+  const [courses, setCourses] = usePersistedState<Course[]>(
+    "admin-courses",
+    []
+  );
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
 
   // UI state - persisted
-  const [expandedById, setExpandedById] = usePersistedState<Record<string, boolean>>("admin-expanded", {});
-  const [selected, setSelected] = usePersistedState<SelectedNode>("admin-selected", null);
+  const [expandedById, setExpandedById] = usePersistedState<
+    Record<string, boolean>
+  >("admin-expanded", {});
+  const [selected, setSelected] = usePersistedState<SelectedNode>(
+    "admin-selected",
+    null
+  );
 
   // Form states - SIMPLIFIED: Use regular useState for now to avoid loops
   const [courseTitle, setCourseTitle] = useState("");
@@ -308,14 +356,21 @@ export default function CoursesAdmin() {
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonOrder, setLessonOrder] = useState(0);
   const [lessonContent, setLessonContent] = useState<JSONContent>(EMPTY_DOC);
-  const [newQuestionText, setNewQuestionText] = useState<JSONContent>(EMPTY_DOC);
+  const [newQuestionText, setNewQuestionText] =
+    useState<JSONContent>(EMPTY_DOC);
   const [newExplanation, setNewExplanation] = useState<JSONContent>(EMPTY_DOC);
   const [newOptions, setNewOptions] = useState<string[]>(DEFAULT_OPTIONS);
   const [newCorrect, setNewCorrect] = useState<number[]>([]);
 
   // Unsaved changes state
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const { showConfirm, confirmAction, cancelAction, setPendingAction, setShowConfirm } = useUnsavedChanges(hasUnsavedChanges);
+  const {
+    showConfirm,
+    confirmAction,
+    cancelAction,
+    setPendingAction,
+    setShowConfirm,
+  } = useUnsavedChanges(hasUnsavedChanges);
 
   // Track form changes
   const trackChanges = useCallback((hasChanges: boolean) => {
@@ -348,7 +403,9 @@ export default function CoursesAdmin() {
       } catch {
         return {
           type: "doc",
-          content: [{ type: "paragraph", content: [{ type: "text", text: content }] }],
+          content: [
+            { type: "paragraph", content: [{ type: "text", text: content }] },
+          ],
         };
       }
     }
@@ -367,7 +424,7 @@ export default function CoursesAdmin() {
 
   // Find helpers (optimized)
   const treeFinders = useMemo((): TreeFinders => {
-    const findCourse = (id: string): Course | null => 
+    const findCourse = (id: string): Course | null =>
       courses.find((c) => c.id === id) || null;
 
     const findModule = (id: string) => {
@@ -409,42 +466,30 @@ export default function CoursesAdmin() {
   }, [courses, selected]);
 
   // Update course tree helper
-  const updateCourseTree = useCallback((updater: (courses: Course[]) => Course[]) => {
-    setCourses(prev => updater(prev.map(course => ({ ...course }))));
-  }, [setCourses]);
+  const updateCourseTree = useCallback(
+    (updater: (courses: Course[]) => Course[]) => {
+      setCourses((prev) => updater(prev.map((course) => ({ ...course }))));
+    },
+    [setCourses]
+  );
 
   // Unwrap pattern for API calls
-  const unwrap = useCallback(async <T,>(promise: Promise<{ data: T; error: any }>): Promise<T> => {
-    const result = await promise;
-    if (result.error) throw result.error;
-    return result.data;
-  }, []);
+  const unwrap = useCallback(
+    async <T,>(promise: Promise<{ data: T; error: any }>): Promise<T> => {
+      const result = await promise;
+      if (result.error) throw result.error;
+      return result.data;
+    },
+    []
+  );
 
   // Load data
   const loadCourses = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchCourseWithContent();
-      const normalizedCourses = (data || []).map((c: any) => ({
-        ...c,
-        modules: (c.modules || []).map((m: any) => ({
-          ...m,
-          units: (m.units || []).map((u: any) => ({
-            ...u,
-            lessons: (u.lessons || []).map((l: any) => ({
-              ...l,
-              quizzes: (l.quizzes || []).map((q: any) => ({
-                ...q,
-                questions: (q.quiz_questions || []).map((qq: any) => ({
-                  ...qq,
-                  explanation: qq.explanation || { text: EMPTY_DOC },
-                })),
-              })),
-            })),
-          })),
-        })),
-      })) as Course[];
-      
+      // Use safe type assertion
+      const normalizedCourses = safeCourseArray(data);
       setCourses(normalizedCourses);
     } catch (err: any) {
       console.error("Failed to load courses:", err);
@@ -504,33 +549,43 @@ export default function CoursesAdmin() {
   }, [selected, treeFinders, resetFormStates, parseContent, toast]);
 
   // Selection handler - SIMPLIFIED
-  const selectNode = useCallback((node: SelectedNode) => {
-    if (hasUnsavedChanges && selected && selected.id !== node?.id) {
-      setShowConfirm(true);
-      setPendingAction(() => () => {
-        setSelected(node);
-      });
-      return;
-    }
+  const selectNode = useCallback(
+    (node: SelectedNode) => {
+      if (hasUnsavedChanges && selected && selected.id !== node?.id) {
+        setShowConfirm(true);
+        setPendingAction(() => () => {
+          setSelected(node);
+        });
+        return;
+      }
 
-    setSelected(node);
-  }, [hasUnsavedChanges, selected, setSelected, setShowConfirm, setPendingAction]);
+      setSelected(node);
+    },
+    [hasUnsavedChanges, selected, setSelected, setShowConfirm, setPendingAction]
+  );
 
   // UI handlers
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedById(prev => ({ ...prev, [id]: !prev[id] }));
-  }, [setExpandedById]);
+  const toggleExpand = useCallback(
+    (id: string) => {
+      setExpandedById((prev) => ({ ...prev, [id]: !prev[id] }));
+    },
+    [setExpandedById]
+  );
 
   // Form change handlers
-  const createChangeHandler = useCallback((setter: (value: any) => void) => {
-    return (value: any) => {
-      setter(value);
-      trackChanges(true);
-    };
-  }, [trackChanges]);
+  const createChangeHandler = useCallback(
+    (setter: (value: any) => void) => {
+      return (value: any) => {
+        setter(value);
+        trackChanges(true);
+      };
+    },
+    [trackChanges]
+  );
 
   const handleCourseTitleChange = createChangeHandler(setCourseTitle);
-  const handleCourseDescriptionChange = createChangeHandler(setCourseDescription);
+  const handleCourseDescriptionChange =
+    createChangeHandler(setCourseDescription);
   const handleModuleTitleChange = createChangeHandler(setModuleTitle);
   const handleUnitTitleChange = createChangeHandler(setUnitTitle);
   const handleLessonTitleChange = createChangeHandler(setLessonTitle);
@@ -563,7 +618,20 @@ export default function CoursesAdmin() {
         console.warn(`Error saving ${key} to temporary storage:`, error);
       }
     });
-  }, [selected, courseTitle, courseDescription, moduleTitle, unitTitle, lessonTitle, lessonOrder, lessonContent, newQuestionText, newOptions, newCorrect, newExplanation]);
+  }, [
+    selected,
+    courseTitle,
+    courseDescription,
+    moduleTitle,
+    unitTitle,
+    lessonTitle,
+    lessonOrder,
+    lessonContent,
+    newQuestionText,
+    newOptions,
+    newCorrect,
+    newExplanation,
+  ]);
 
   // Load from temporary storage
   const loadFromTemporaryStorage = useCallback(() => {
@@ -572,7 +640,7 @@ export default function CoursesAdmin() {
     try {
       const courseTitleKey = `temp-${selected.type}-${selected.id}-courseTitle`;
       const storedTitle = localStorage.getItem(courseTitleKey);
-      
+
       if (storedTitle) {
         // We have temporary data, load it
         const loadField = (field: string) => {
@@ -581,24 +649,24 @@ export default function CoursesAdmin() {
           return stored ? JSON.parse(stored) : null;
         };
 
-        setCourseTitle(loadField('courseTitle') || '');
-        setCourseDescription(loadField('courseDescription') || '');
-        setModuleTitle(loadField('moduleTitle') || '');
-        setUnitTitle(loadField('unitTitle') || '');
-        setLessonTitle(loadField('lessonTitle') || '');
-        setLessonOrder(loadField('lessonOrder') || 0);
-        setLessonContent(loadField('lessonContent') || EMPTY_DOC);
-        setNewQuestionText(loadField('newQuestionText') || EMPTY_DOC);
-        setNewOptions(loadField('newOptions') || DEFAULT_OPTIONS);
-        setNewCorrect(loadField('newCorrect') || []);
-        setNewExplanation(loadField('newExplanation') || EMPTY_DOC);
-        
+        setCourseTitle(loadField("courseTitle") || "");
+        setCourseDescription(loadField("courseDescription") || "");
+        setModuleTitle(loadField("moduleTitle") || "");
+        setUnitTitle(loadField("unitTitle") || "");
+        setLessonTitle(loadField("lessonTitle") || "");
+        setLessonOrder(loadField("lessonOrder") || 0);
+        setLessonContent(loadField("lessonContent") || EMPTY_DOC);
+        setNewQuestionText(loadField("newQuestionText") || EMPTY_DOC);
+        setNewOptions(loadField("newOptions") || DEFAULT_OPTIONS);
+        setNewCorrect(loadField("newCorrect") || []);
+        setNewExplanation(loadField("newExplanation") || EMPTY_DOC);
+
         return true;
       }
     } catch (error) {
-      console.warn('Error loading temporary data:', error);
+      console.warn("Error loading temporary data:", error);
     }
-    
+
     return false;
   }, [selected]);
 
@@ -671,245 +739,389 @@ export default function CoursesAdmin() {
   const handleCreateCourse = useCallback(async () => {
     const title = prompt("New course title");
     if (!title) return;
-    
+
     try {
-      const created = await unwrap(createCourse({ title, created_by: user.id }));
-      updateCourseTree(prev => [...prev, { ...created, modules: created.modules || [] }]);
+      const created = await createCourse({ title, description: "" });
+      updateCourseTree((prev) => [
+        ...prev,
+        {
+          ...created,
+          modules: [],
+        },
+      ]);
       toast({ title: "Course created", status: "success" });
     } catch (err: any) {
-      toast({ title: "Error creating course", description: String(err), status: "error" });
+      toast({
+        title: "Error creating course",
+        description: String(err),
+        status: "error",
+      });
     }
-  }, [user.id, unwrap, updateCourseTree, toast]);
+  }, [updateCourseTree, toast]);
 
   const handleSaveCourse = useCallback(async () => {
     if (!selected || selected.type !== "course") return;
-    
+
     try {
-      const updated = await unwrap(updateCourse(selected.id, { title: courseTitle, description: courseDescription }));
-      updateCourseTree(prev => prev.map(c => c.id === updated.id ? { ...updated, modules: updated.modules || [] } : c));
-      
+      const updated = await updateCourse(selected.id, {
+        title: courseTitle,
+        description: courseDescription,
+      });
+      updateCourseTree((prev) =>
+        prev.map((c) =>
+          c.id === updated.id
+            ? {
+                ...updated,
+                modules: c.modules || [],
+              }
+            : c
+        )
+      );
+
       clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Course updated", status: "success" });
     } catch (err: any) {
-      toast({ title: "Error updating course", description: String(err), status: "error" });
+      toast({
+        title: "Error updating course",
+        description: String(err),
+        status: "error",
+      });
     }
-  }, [selected, courseTitle, courseDescription, unwrap, updateCourseTree, trackChanges, toast]);
+  }, [
+    selected,
+    courseTitle,
+    courseDescription,
+    updateCourseTree,
+    trackChanges,
+    toast,
+  ]);
 
-  const handleDeleteCourse = useCallback(async (id: string) => {
-    if (!confirm("Delete course permanently?")) return;
-    
-    try {
-      await deleteCourse(id);
-      updateCourseTree(prev => prev.filter(c => c.id !== id));
-      if (selected?.type === "course" && selected.id === id) {
-        clearTemporaryData(selected);
-        setSelected(null);
-        resetFormStates();
+  const handleDeleteCourse = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete course permanently?")) return;
+
+      try {
+        await deleteCourse(id);
+        updateCourseTree((prev) => prev.filter((c) => c.id !== id));
+        if (selected?.type === "course" && selected.id === id) {
+          clearTemporaryData(selected);
+          setSelected(null);
+          resetFormStates();
+        }
+        toast({ title: "Course deleted", status: "info" });
+      } catch (err: any) {
+        toast({
+          title: "Error deleting course",
+          description: String(err),
+          status: "error",
+        });
       }
-      toast({ title: "Course deleted", status: "info" });
-    } catch (err: any) {
-      toast({ title: "Error deleting course", description: String(err), status: "error" });
-    }
-  }, [selected, setSelected, resetFormStates, updateCourseTree, toast]);
-
+    },
+    [selected, setSelected, resetFormStates, updateCourseTree, toast]
+  );
 
   // Module CRUD
-  const handleCreateModule = useCallback(async (courseId: string) => {
-    const title = prompt("New module title");
-    if (!title) return;
+  const handleCreateModule = useCallback(
+    async (courseId: string) => {
+      const title = prompt("New module title");
+      if (!title) return;
 
-    try {
-      let maxOrder = 0;
-      updateCourseTree(prev => {
-        const course = prev.find(c => c.id === courseId);
-        if (course) {
-          maxOrder = course.modules?.reduce((max, m) => Math.max(max, m.order_index ?? 0), 0) ?? 0;
-        }
-        return prev;
-      });
+      try {
+        let maxOrder = 0;
+        updateCourseTree((prev) => {
+          const course = prev.find((c) => c.id === courseId);
+          if (course) {
+            maxOrder =
+              course.modules?.reduce(
+                (max, m) => Math.max(max, m.order_index ?? 0),
+                0
+              ) ?? 0;
+          }
+          return prev;
+        });
 
-      const order_index = maxOrder + 1;
-      const created = await unwrap(createModule({ title, course_id: courseId, order_index }));
-      
-      updateCourseTree(prev => prev.map(c => 
-        c.id === courseId 
-          ? { ...c, modules: [...(c.modules || []), { ...created, units: created.units || [] }] }
-          : c
-      ));
-      toast({ title: "Module created", status: "success" });
-    } catch (err: any) {
-      toast({ title: "Error creating module", description: String(err), status: "error" });
-    }
-  }, [unwrap, updateCourseTree, toast]);
+        const order_index = maxOrder + 1;
+        const created = await createModule({
+          title,
+          course_id: courseId,
+          order_index,
+        });
+        // Use safe type assertion
+        const safeCreated = safeModule(created);
+
+        updateCourseTree((prev) =>
+          prev.map((c) =>
+            c.id === courseId
+              ? {
+                  ...c,
+                  modules: [...(c.modules || []), safeCreated],
+                }
+              : c
+          )
+        );
+        toast({ title: "Module created", status: "success" });
+      } catch (err: any) {
+        toast({
+          title: "Error creating module",
+          description: String(err),
+          status: "error",
+        });
+      }
+    },
+    [updateCourseTree, toast]
+  );
 
   const handleSaveModule = useCallback(async () => {
     if (!selected || selected.type !== "module") return;
-    
+
     try {
-      const updated = await unwrap(updateModule(selected.id, { title: moduleTitle }));
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => m.id === updated.id ? { ...updated, units: updated.units || [] } : m)
-      })));
-      
+      const updated = await updateModule(selected.id, { title: moduleTitle });
+      // Use safe type assertion
+      const safeUpdated = safeModule(updated);
+      updateCourseTree((prev) =>
+        prev.map((c) => ({
+          ...c,
+          modules: (c.modules || []).map((m) =>
+            m.id === safeUpdated.id
+              ? {
+                  ...safeUpdated,
+                  units: m.units || [],
+                }
+              : m
+          ),
+        }))
+      );
+
       clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Module updated", status: "success" });
     } catch (err: any) {
-      toast({ title: "Error updating module", description: String(err), status: "error" });
+      toast({
+        title: "Error updating module",
+        description: String(err),
+        status: "error",
+      });
     }
-  }, [selected, moduleTitle, unwrap, updateCourseTree, trackChanges, toast]);
+  }, [selected, moduleTitle, updateCourseTree, trackChanges, toast]);
 
-  const handleDeleteModule = useCallback(async (id: string) => {
-    if (!confirm("Delete module?")) return;
-    
-    try {
-      await deleteModule(id);
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: (c.modules || []).filter(m => m.id !== id)
-      })));
-      if (selected?.type === "module" && selected.id === id) {
-        clearTemporaryData(selected);
-        setSelected(null);
+  const handleDeleteModule = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete module?")) return;
+
+      try {
+        await deleteModule(id);
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: (c.modules || []).filter((m) => m.id !== id),
+          }))
+        );
+        if (selected?.type === "module" && selected.id === id) {
+          clearTemporaryData(selected);
+          setSelected(null);
+        }
+        toast({ title: "Module deleted", status: "info" });
+      } catch (err: any) {
+        toast({
+          title: "Error deleting module",
+          description: String(err),
+          status: "error",
+        });
       }
-      toast({ title: "Module deleted", status: "info" });
-    } catch (err: any) {
-      toast({ title: "Error deleting module", description: String(err), status: "error" });
-    }
-  }, [selected, setSelected, updateCourseTree, toast]);
+    },
+    [selected, setSelected, updateCourseTree, toast]
+  );
 
   // Unit CRUD
-  const handleCreateUnit = useCallback(async (moduleId: string) => {
-    const title = prompt("New unit title");
-    if (!title) return;
+  const handleCreateUnit = useCallback(
+    async (moduleId: string) => {
+      const title = prompt("New unit title");
+      if (!title) return;
 
-    try {
-      let maxOrder = 0;
-      updateCourseTree(prev => {
-        for (const course of prev) {
-          const module = course.modules?.find(m => m.id === moduleId);
-          if (module) {
-            maxOrder = module.units?.reduce((max, u) => Math.max(max, u.order_index ?? 0), 0) ?? 0;
-            break;
+      try {
+        let maxOrder = 0;
+        updateCourseTree((prev) => {
+          for (const course of prev) {
+            const module = course.modules?.find((m) => m.id === moduleId);
+            if (module) {
+              maxOrder =
+                module.units?.reduce(
+                  (max, u) => Math.max(max, u.order_index ?? 0),
+                  0
+                ) ?? 0;
+              break;
+            }
           }
-        }
-        return prev;
-      });
+          return prev;
+        });
 
-      const order_index = maxOrder + 1;
-      const created = await unwrap(createUnit({ title, module_id: moduleId, order_index }));
+        const order_index = maxOrder + 1;
+        const created = await createUnit({
+          title,
+          module_id: moduleId,
+          order_index,
+        });
+        // Use safe type assertion
+        const safeCreated = safeUnit(created);
 
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: (c.modules || []).map(m =>
-          m.id === moduleId
-            ? {
-                ...m,
-                units: [
-                  ...(m.units || []),
-                  { ...created, lessons: created.lessons || [] },
-                ],
-              }
-            : m
-        ),
-      })));
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: (c.modules || []).map((m) =>
+              m.id === moduleId
+                ? {
+                    ...m,
+                    units: [...(m.units || []), safeCreated],
+                  }
+                : m
+            ),
+          }))
+        );
 
-      toast({ title: "Unit created", status: "success" });
-    } catch (err: any) {
-      toast({ title: "Error creating unit", description: String(err), status: "error" });
-    }
-  }, [unwrap, updateCourseTree, toast]);
+        toast({ title: "Unit created", status: "success" });
+      } catch (err: any) {
+        toast({
+          title: "Error creating unit",
+          description: String(err),
+          status: "error",
+        });
+      }
+    },
+    [updateCourseTree, toast]
+  );
 
   const handleSaveUnit = useCallback(async () => {
     if (!selected || selected.type !== "unit") return;
-    
+
     try {
-      const updated = await unwrap(updateUnit(selected.id, { title: unitTitle }));
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: m.units.map(u =>
-            u.id === updated.id
-              ? { ...updated, lessons: updated.lessons || [] }
-              : u
-          ),
-        })),
-      })));
-      
+      const updated = await updateUnit(selected.id, { title: unitTitle });
+      // Use safe type assertion
+      const safeUpdated = safeUnit(updated);
+      updateCourseTree((prev) =>
+        prev.map((c) => ({
+          ...c,
+          modules: (c.modules || []).map((m) => ({
+            ...m,
+            units: (m.units || []).map((u) =>
+              u.id === safeUpdated.id
+                ? {
+                    ...safeUpdated,
+                    lessons: u.lessons || [],
+                  }
+                : u
+            ),
+          })),
+        }))
+      );
+
       clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Unit updated", status: "success" });
     } catch (err: any) {
-      toast({ title: "Error updating unit", description: String(err), status: "error" });
+      toast({
+        title: "Error updating unit",
+        description: String(err),
+        status: "error",
+      });
     }
-  }, [selected, unitTitle, unwrap, updateCourseTree, trackChanges, toast]);
+  }, [selected, unitTitle, updateCourseTree, trackChanges, toast]);
 
-  const handleDeleteUnit = useCallback(async (id: string) => {
-    if (!confirm("Delete unit?")) return;
-    
-    try {
-      await deleteUnit(id);
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: (m.units || []).filter(u => u.id !== id),
-        })),
-      })));
-      if (selected?.type === "unit" && selected.id === id) {
-        clearTemporaryData(selected);
-        setSelected(null);
+  const handleDeleteUnit = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete unit?")) return;
+
+      try {
+        await deleteUnit(id);
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: c.modules.map((m) => ({
+              ...m,
+              units: (m.units || []).filter((u) => u.id !== id),
+            })),
+          }))
+        );
+        if (selected?.type === "unit" && selected.id === id) {
+          clearTemporaryData(selected);
+          setSelected(null);
+        }
+        toast({ title: "Unit deleted", status: "info" });
+      } catch (err: any) {
+        toast({
+          title: "Error deleting unit",
+          description: String(err),
+          status: "error",
+        });
       }
-      toast({ title: "Unit deleted", status: "info" });
-    } catch (err: any) {
-      toast({ title: "Error deleting unit", description: String(err), status: "error" });
-    }
-  }, [selected, setSelected, updateCourseTree, toast]);
+    },
+    [selected, setSelected, updateCourseTree, toast]
+  );
 
   // Lesson CRUD
-  const handleCreateLesson = useCallback(async (unitId: string) => {
-    const title = prompt("New lesson title");
-    if (!title) return;
+  const handleCreateLesson = useCallback(
+    async (unitId: string) => {
+      const title = prompt("New lesson title");
+      if (!title) return;
 
-    try {
-      let maxOrder = 0;
-      courses.forEach((course) => {
-        course.modules?.forEach((mod) => {
-          mod.units?.forEach((unit) => {
-            if (unit.id === unitId) {
-              maxOrder = unit.lessons?.reduce((max, lesson) => Math.max(max, lesson.order_index ?? 0), 0) ?? 0;
-            }
+      try {
+        let maxOrder = 0;
+        courses.forEach((course) => {
+          course.modules?.forEach((mod) => {
+            mod.units?.forEach((unit) => {
+              if (unit.id === unitId) {
+                maxOrder =
+                  unit.lessons?.reduce(
+                    (max, lesson) => Math.max(max, lesson.order_index ?? 0),
+                    0
+                  ) ?? 0;
+              }
+            });
           });
         });
-      });
 
-      const order_index = maxOrder + 1;
-      const created = await unwrap(createLesson({ unit_id: unitId, title, content: EMPTY_DOC, order_index }));
+        const order_index = maxOrder + 1;
+        const created = await createLesson({
+          unit_id: unitId,
+          title,
+          content: EMPTY_DOC,
+          order_index,
+        });
+        // Use safe type assertion
+        const safeCreated = safeLesson(created);
 
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: (c.modules || []).map(m => ({
-          ...m,
-          units: (m.units || []).map(u =>
-            u.id === unitId
-              ? { ...u, lessons: [...(u.lessons || []), created] }
-              : u
-          ),
-        })),
-      })));
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: (c.modules || []).map((m) => ({
+              ...m,
+              units: (m.units || []).map((u) =>
+                u.id === unitId
+                  ? {
+                      ...u,
+                      lessons: [...(u.lessons || []), safeCreated],
+                    }
+                  : u
+              ),
+            })),
+          }))
+        );
 
-      toast({ title: "Lesson created", status: "success" });
-    } catch (err: any) {
-      toast({ title: "Error creating lesson", description: String(err), status: "error" });
-    }
-  }, [courses, unwrap, updateCourseTree, toast]);
+        toast({ title: "Lesson created", status: "success" });
+      } catch (err: any) {
+        toast({
+          title: "Error creating lesson",
+          description: String(err),
+          status: "error",
+        });
+      }
+    },
+    [courses, updateCourseTree, toast]
+  );
 
   const handleSaveLesson = useCallback(async () => {
     if (!selected || selected.type !== "lesson") return;
-    
+
     try {
       const foundLesson = treeFinders.lesson;
       if (!foundLesson) {
@@ -917,212 +1129,302 @@ export default function CoursesAdmin() {
         return;
       }
 
-      const payload: Partial<Lesson> = {
+      const payload = {
         title: lessonTitle,
         content: lessonContent,
         order_index: lessonOrder,
       };
 
-      const updated = await unwrap(updateLesson(selected.id, payload));
-      const updatedLessonWithQuizzes = { ...updated, quizzes: foundLesson.lesson.quizzes || [] };
+      const updated = await updateLesson(selected.id, payload);
+      // Use safe type assertion
+      const safeUpdated = safeLesson(updated);
+      const updatedLessonWithQuizzes = {
+        ...safeUpdated,
+        quizzes: foundLesson.lesson.quizzes || [],
+      };
 
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: m.units.map(u => ({
-            ...u,
-            lessons: u.lessons.map(l => l.id === updated.id ? updatedLessonWithQuizzes : l)
-          }))
+      updateCourseTree((prev) =>
+        prev.map((c) => ({
+          ...c,
+          modules: (c.modules || []).map((m) => ({
+            ...m,
+            units: (m.units || []).map((u) => ({
+              ...u,
+              lessons: (u.lessons || []).map((l) =>
+                l.id === safeUpdated.id ? updatedLessonWithQuizzes : l
+              ),
+            })),
+          })),
         }))
-      })));
+      );
 
       clearTemporaryData(selected);
       trackChanges(false);
       toast({ title: "Lesson saved", status: "success" });
     } catch (err: any) {
       console.error("Error saving lesson:", err);
-      toast({ title: "Error saving lesson", description: String(err), status: "error" });
+      toast({
+        title: "Error saving lesson",
+        description: String(err),
+        status: "error",
+      });
     }
-  }, [selected, lessonTitle, lessonContent, lessonOrder, treeFinders, unwrap, updateCourseTree, trackChanges, toast]);
+  }, [
+    selected,
+    lessonTitle,
+    lessonContent,
+    lessonOrder,
+    treeFinders,
+    updateCourseTree,
+    trackChanges,
+    toast,
+  ]);
 
-  const handleDeleteLesson = useCallback(async (id: string) => {
-    if (!confirm("Delete lesson?")) return;
-    
-    try {
-      await deleteLesson(id);
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: m.units.map(u => ({
-            ...u,
-            lessons: (u.lessons || []).filter(l => l.id !== id),
-          })),
-        })),
-      })));
-      if (selected?.type === "lesson" && selected.id === id) {
-        clearTemporaryData(selected);
-        setSelected(null);
+  const handleDeleteLesson = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete lesson?")) return;
+
+      try {
+        await deleteLesson(id);
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: c.modules.map((m) => ({
+              ...m,
+              units: m.units.map((u) => ({
+                ...u,
+                lessons: (u.lessons || []).filter((l) => l.id !== id),
+              })),
+            })),
+          }))
+        );
+        if (selected?.type === "lesson" && selected.id === id) {
+          clearTemporaryData(selected);
+          setSelected(null);
+        }
+        toast({ title: "Lesson deleted", status: "info" });
+      } catch (err: any) {
+        toast({
+          title: "Error deleting lesson",
+          description: String(err),
+          status: "error",
+        });
       }
-      toast({ title: "Lesson deleted", status: "info" });
-    } catch (err: any) {
-      toast({ title: "Error deleting lesson", description: String(err), status: "error" });
-    }
-  }, [selected, setSelected, updateCourseTree, toast]);
+    },
+    [selected, setSelected, updateCourseTree, toast]
+  );
 
   // Quiz CRUD
-  const handleAddQuiz = useCallback(async (lessonId: string) => {
-    try {
-      const created = await unwrap(createQuiz({ lesson_id: lessonId, passing_score: 70 }));
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: m.units.map(u => ({
-            ...u,
-            lessons: u.lessons.map(l =>
-              l.id === lessonId
-                ? { ...l, quizzes: [...(l.quizzes || []), created] }
-                : l
-            ),
-          })),
-        })),
-      })));
-      toast({ title: "Quiz added", status: "success" });
-    } catch (err: any) {
-      toast({ title: "Error adding quiz", description: String(err), status: "error" });
-    }
-  }, [unwrap, updateCourseTree, toast]);
+  const handleAddQuiz = useCallback(
+    async (lessonId: string) => {
+      try {
+        const created = await createQuiz({
+          lesson_id: lessonId,
+          passing_score: 70,
+        });
+        // Use safe type assertion
+        const safeCreated = safeQuiz(created);
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: (c.modules || []).map((m) => ({
+              ...m,
+              units: (m.units || []).map((u) => ({
+                ...u,
+                lessons: (u.lessons || []).map((l) =>
+                  l.id === lessonId
+                    ? {
+                        ...l,
+                        quizzes: [...(l.quizzes || []), safeCreated],
+                      }
+                    : l
+                ),
+              })),
+            })),
+          }))
+        );
+        toast({ title: "Quiz added", status: "success" });
+      } catch (err: any) {
+        toast({
+          title: "Error adding quiz",
+          description: String(err),
+          status: "error",
+        });
+      }
+    },
+    [updateCourseTree, toast]
+  );
 
-  const handleDeleteQuiz = useCallback(async (quizId: string, lessonId: string) => {
-    if (!confirm("Delete quiz?")) return;
-    
-    try {
-      await deleteQuiz(quizId);
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: m.units.map(u => ({
-            ...u,
-            lessons: u.lessons.map(l =>
-              l.id === lessonId
-                ? {
-                    ...l,
-                    quizzes: (l.quizzes || []).filter(q => q.id !== quizId),
-                  }
-                : l
-            ),
-          })),
-        })),
-      })));
-      toast({ title: "Quiz removed", status: "info" });
-    } catch (err: any) {
-      toast({ title: "Error deleting quiz", description: String(err), status: "error" });
-    }
-  }, [updateCourseTree, toast]);
+  const handleDeleteQuiz = useCallback(
+    async (quizId: string, lessonId: string) => {
+      if (!confirm("Delete quiz?")) return;
+
+      try {
+        await deleteQuiz(quizId);
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: c.modules.map((m) => ({
+              ...m,
+              units: m.units.map((u) => ({
+                ...u,
+                lessons: u.lessons.map((l) =>
+                  l.id === lessonId
+                    ? {
+                        ...l,
+                        quizzes: (l.quizzes || []).filter(
+                          (q) => q.id !== quizId
+                        ),
+                      }
+                    : l
+                ),
+              })),
+            })),
+          }))
+        );
+        toast({ title: "Quiz removed", status: "info" });
+      } catch (err: any) {
+        toast({
+          title: "Error deleting quiz",
+          description: String(err),
+          status: "error",
+        });
+      }
+    },
+    [updateCourseTree, toast]
+  );
 
   // Question CRUD
-  const handleAddQuestion = useCallback(async (quizId: string, lessonId: string) => {
-    const hasText = newQuestionText?.content?.some(
-      (node) =>
-        node.type === "paragraph" && node.content?.some((t) => t.text?.trim())
-    );
+  const handleAddQuestion = useCallback(
+    async (quizId: string, lessonId: string) => {
+      const hasText = newQuestionText?.content?.some(
+        (node) =>
+          node.type === "paragraph" && node.content?.some((t) => t.text?.trim())
+      );
 
-    if (!hasText || newCorrect.length === 0) {
-      toast({ title: "Incomplete question", status: "warning" });
-      return;
-    }
+      if (!hasText || newCorrect.length === 0) {
+        toast({ title: "Incomplete question", status: "warning" });
+        return;
+      }
 
-    try {
-      const payload: Partial<QuizQuestion> = {
-        lesson_id: lessonId,
-        quiz_id: quizId,
-        question_text: newQuestionText,
-        options: newOptions,
-        correct_answer: newCorrect.map((i) => newOptions[i]),
-        explanation: { JSONContent: newExplanation },
-      };
+      try {
+        const payload = {
+          lesson_id: lessonId,
+          quiz_id: quizId,
+          question_text: newQuestionText,
+          options: newOptions,
+          correct_answer: newCorrect.map((i) => newOptions[i]),
+          explanation: newExplanation,
+        };
 
-      const created = await unwrap(createQuizQuestion(payload));
+        const created = await createQuizQuestion(payload);
+        // Use safe type assertion
+        const safeCreated = safeQuizQuestion(created);
 
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: m.units.map(u => ({
-            ...u,
-            lessons: u.lessons.map(l =>
-              l.id === lessonId
-                ? {
-                    ...l,
-                    quizzes: l.quizzes?.map(q =>
-                      q.id === quizId
-                        ? {
-                            ...q,
-                            questions: [...(q.questions || []), created],
-                          }
-                        : q
-                    ),
-                  }
-                : l
-            ),
-          })),
-        })),
-      })));
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: (c.modules || []).map((m) => ({
+              ...m,
+              units: (m.units || []).map((u) => ({
+                ...u,
+                lessons: (u.lessons || []).map((l) =>
+                  l.id === lessonId
+                    ? {
+                        ...l,
+                        quizzes: (l.quizzes || []).map((q) =>
+                          q.id === quizId
+                            ? {
+                                ...q,
+                                questions: [
+                                  ...(q.questions || []),
+                                  safeCreated,
+                                ],
+                              }
+                            : q
+                        ),
+                      }
+                    : l
+                ),
+              })),
+            })),
+          }))
+        );
 
-      setNewQuestionText(EMPTY_DOC);
-      setNewOptions(DEFAULT_OPTIONS);
-      setNewCorrect([]);
-      setNewExplanation(EMPTY_DOC);
+        setNewQuestionText(EMPTY_DOC);
+        setNewOptions(DEFAULT_OPTIONS);
+        setNewCorrect([]);
+        setNewExplanation(EMPTY_DOC);
 
-      toast({ title: "Question added", status: "success" });
-    } catch (err: any) {
-      toast({ title: "Error adding question", description: String(err), status: "error" });
-    }
-  }, [newQuestionText, newCorrect, newOptions, newExplanation, unwrap, updateCourseTree, setNewQuestionText, setNewOptions, setNewCorrect, setNewExplanation, toast]);
+        toast({ title: "Question added", status: "success" });
+      } catch (err: any) {
+        toast({
+          title: "Error adding question",
+          description: String(err),
+          status: "error",
+        });
+      }
+    },
+    [
+      newQuestionText,
+      newCorrect,
+      newOptions,
+      newExplanation,
+      updateCourseTree,
+      toast,
+    ]
+  );
+  const handleDeleteQuestion = useCallback(
+    async (quizId: string, questionId: string, lessonId: string) => {
+      if (!confirm("Delete question?")) return;
 
-  const handleDeleteQuestion = useCallback(async (quizId: string, questionId: string, lessonId: string) => {
-    if (!confirm("Delete question?")) return;
-    
-    try {
-      await deleteQuizQuestion(questionId);
-      updateCourseTree(prev => prev.map(c => ({
-        ...c,
-        modules: c.modules.map(m => ({
-          ...m,
-          units: m.units.map(u => ({
-            ...u,
-            lessons: u.lessons.map(l =>
-              l.id === lessonId
-                ? {
-                    ...l,
-                    quizzes: l.quizzes?.map(q =>
-                      q.id === quizId
-                        ? {
-                            ...q,
-                            questions: (q.questions || []).filter(qq => qq.id !== questionId),
-                          }
-                        : q
-                    ),
-                  }
-                : l
-            ),
-          })),
-        })),
-      })));
-      toast({ title: "Question deleted", status: "info" });
-    } catch (err: any) {
-      toast({ title: "Error deleting question", description: String(err), status: "error" });
-    }
-  }, [updateCourseTree, toast]);
+      try {
+        await deleteQuizQuestion(questionId);
+        updateCourseTree((prev) =>
+          prev.map((c) => ({
+            ...c,
+            modules: c.modules.map((m) => ({
+              ...m,
+              units: m.units.map((u) => ({
+                ...u,
+                lessons: u.lessons.map((l) =>
+                  l.id === lessonId
+                    ? {
+                        ...l,
+                        quizzes: l.quizzes?.map((q) =>
+                          q.id === quizId
+                            ? {
+                                ...q,
+                                questions: (q.questions || []).filter(
+                                  (qq) => qq.id !== questionId
+                                ),
+                              }
+                            : q
+                        ),
+                      }
+                    : l
+                ),
+              })),
+            })),
+          }))
+        );
+        toast({ title: "Question deleted", status: "info" });
+      } catch (err: any) {
+        toast({
+          title: "Error deleting question",
+          description: String(err),
+          status: "error",
+        });
+      }
+    },
+    [updateCourseTree, toast]
+  );
 
   // Derived data
   const visibleCourses = useMemo(() => {
     if (!search.trim()) return courses;
     const query = search.toLowerCase();
-    return courses.filter(c => (c.title || "").toLowerCase().includes(query));
+    return courses.filter((c) => (c.title || "").toLowerCase().includes(query));
   }, [courses, search]);
 
   // Render tree (optimized)
@@ -1160,7 +1462,10 @@ export default function CoursesAdmin() {
               aria-label={`expand-unit-${unit.id}`}
               size="xs"
               variant="ghost"
-              icon={Icon(expandedById[unit.id] ? ChevronUpIcon : ChevronDownIcon, { width: 4, height: 4 })}
+              icon={Icon(
+                expandedById[unit.id] ? ChevronUpIcon : ChevronDownIcon,
+                { width: 4, height: 4 }
+              )}
               onClick={() => toggleExpand(unit.id)}
             />
             <Text
@@ -1207,7 +1512,10 @@ export default function CoursesAdmin() {
               aria-label={`expand-module-${module.id}`}
               size="xs"
               variant="ghost"
-              icon={Icon(expandedById[module.id] ? ChevronUpIcon : ChevronDownIcon, { width: 6, height: 6 })}
+              icon={Icon(
+                expandedById[module.id] ? ChevronUpIcon : ChevronDownIcon,
+                { width: 6, height: 6 }
+              )}
               onClick={() => toggleExpand(module.id)}
             />
             <Text
@@ -1247,12 +1555,21 @@ export default function CoursesAdmin() {
     );
 
     const renderCourse = (course: Course) => (
-      <Box key={course.id} borderWidth={1} borderRadius="md" mb={3} overflow="visible">
+      <Box
+        key={course.id}
+        borderWidth={1}
+        borderRadius="md"
+        mb={3}
+        overflow="visible"
+      >
         <Flex align="center" justify="space-between" p={2}>
           <HStack spacing={2} align="center">
             <IconButton
               aria-label={`expand-course-${course.id}`}
-              icon={Icon(expandedById[course.id] ? ChevronUpIcon : ChevronDownIcon, { width: 6, height: 6 })}
+              icon={Icon(
+                expandedById[course.id] ? ChevronUpIcon : ChevronDownIcon,
+                { width: 6, height: 6 }
+              )}
               size="xs"
               onClick={() => toggleExpand(course.id)}
               variant="ghost"
@@ -1296,10 +1613,17 @@ export default function CoursesAdmin() {
 
     return visibleCourses.map(renderCourse);
   }, [
-    visibleCourses, expandedById, toggleExpand, selectNode, 
-    handleCreateModule, handleDeleteCourse, handleCreateUnit, 
-    handleDeleteModule, handleCreateLesson, handleDeleteUnit, 
-    handleDeleteLesson
+    visibleCourses,
+    expandedById,
+    toggleExpand,
+    selectNode,
+    handleCreateModule,
+    handleDeleteCourse,
+    handleCreateUnit,
+    handleDeleteModule,
+    handleCreateLesson,
+    handleDeleteUnit,
+    handleDeleteLesson,
   ]);
 
   // Detail pane renderer
@@ -1321,22 +1645,41 @@ export default function CoursesAdmin() {
         const course = treeFinders.course;
         return (
           <Box>
-            <Heading size="sm" mb={2}>Edit Course</Heading>
+            <Heading size="sm" mb={2}>
+              Edit Course
+            </Heading>
             <FormControl mb={2}>
               <FormLabel>Title</FormLabel>
-              <ChakraInput value={courseTitle} onChange={(e) => handleCourseTitleChange(e.target.value)} />
+              <ChakraInput
+                value={courseTitle}
+                onChange={(e) => handleCourseTitleChange(e.target.value)}
+              />
             </FormControl>
             <FormControl mb={2}>
               <FormLabel>Description</FormLabel>
-              <Textarea value={courseDescription} onChange={(e) => handleCourseDescriptionChange(e.target.value)} />
+              <Textarea
+                value={courseDescription}
+                onChange={(e) => handleCourseDescriptionChange(e.target.value)}
+              />
             </FormControl>
             <HStack mt={3}>
-              <Button colorScheme="blue" onClick={handleSaveCourse}>Save</Button>
-              <Button colorScheme="red" onClick={() => handleDeleteCourse(selected.id)}>Delete</Button>
-              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
+              <Button colorScheme="blue" onClick={handleSaveCourse}>
+                Save
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => handleDeleteCourse(selected.id)}
+              >
+                Delete
+              </Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>
+                Clear Temporary Data
+              </Button>
             </HStack>
             <Divider my={4} />
-            <Text fontWeight="semibold">Modules ({course?.modules?.length || 0})</Text>
+            <Text fontWeight="semibold">
+              Modules ({course?.modules?.length || 0})
+            </Text>
           </Box>
         );
       }
@@ -1345,18 +1688,34 @@ export default function CoursesAdmin() {
         const module = treeFinders.module;
         return (
           <Box>
-            <Heading size="sm" mb={2}>Edit Module</Heading>
+            <Heading size="sm" mb={2}>
+              Edit Module
+            </Heading>
             <FormControl mb={2}>
               <FormLabel>Title</FormLabel>
-              <ChakraInput value={moduleTitle} onChange={(e) => handleModuleTitleChange(e.target.value)} />
+              <ChakraInput
+                value={moduleTitle}
+                onChange={(e) => handleModuleTitleChange(e.target.value)}
+              />
             </FormControl>
             <HStack mt={3}>
-              <Button colorScheme="blue" onClick={handleSaveModule}>Save</Button>
-              <Button colorScheme="red" onClick={() => handleDeleteModule(selected.id)}>Delete</Button>
-              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
+              <Button colorScheme="blue" onClick={handleSaveModule}>
+                Save
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => handleDeleteModule(selected.id)}
+              >
+                Delete
+              </Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>
+                Clear Temporary Data
+              </Button>
             </HStack>
             <Divider my={4} />
-            <Text fontWeight="semibold">Units ({module?.module?.units?.length || 0})</Text>
+            <Text fontWeight="semibold">
+              Units ({module?.module?.units?.length || 0})
+            </Text>
           </Box>
         );
       }
@@ -1365,18 +1724,34 @@ export default function CoursesAdmin() {
         const unit = treeFinders.unit;
         return (
           <Box>
-            <Heading size="sm" mb={2}>Edit Unit</Heading>
+            <Heading size="sm" mb={2}>
+              Edit Unit
+            </Heading>
             <FormControl mb={2}>
               <FormLabel>Title</FormLabel>
-              <ChakraInput value={unitTitle} onChange={(e) => handleUnitTitleChange(e.target.value)} />
+              <ChakraInput
+                value={unitTitle}
+                onChange={(e) => handleUnitTitleChange(e.target.value)}
+              />
             </FormControl>
             <HStack mt={3}>
-              <Button colorScheme="blue" onClick={handleSaveUnit}>Save</Button>
-              <Button colorScheme="red" onClick={() => handleDeleteUnit(selected.id)}>Delete</Button>
-              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
+              <Button colorScheme="blue" onClick={handleSaveUnit}>
+                Save
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => handleDeleteUnit(selected.id)}
+              >
+                Delete
+              </Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>
+                Clear Temporary Data
+              </Button>
             </HStack>
             <Divider my={4} />
-            <Text fontWeight="semibold">Lessons ({unit?.unit?.lessons?.length || 0})</Text>
+            <Text fontWeight="semibold">
+              Lessons ({unit?.unit?.lessons?.length || 0})
+            </Text>
           </Box>
         );
       }
@@ -1387,14 +1762,22 @@ export default function CoursesAdmin() {
 
         return (
           <Box>
-            <Heading size="sm" mb={2}>Edit Lesson</Heading>
+            <Heading size="sm" mb={2}>
+              Edit Lesson
+            </Heading>
             <FormControl mb={2}>
               <FormLabel>Title</FormLabel>
-              <ChakraInput value={lessonTitle} onChange={(e) => handleLessonTitleChange(e.target.value)} />
+              <ChakraInput
+                value={lessonTitle}
+                onChange={(e) => handleLessonTitleChange(e.target.value)}
+              />
             </FormControl>
             <FormControl mb={2}>
               <FormLabel>Order Index</FormLabel>
-              <NumberInput value={lessonOrder} onChange={(v) => handleLessonOrderChange(Number(v))}>
+              <NumberInput
+                value={lessonOrder}
+                onChange={(v) => handleLessonOrderChange(Number(v))}
+              >
                 <NumberInputField />
               </NumberInput>
             </FormControl>
@@ -1408,9 +1791,18 @@ export default function CoursesAdmin() {
               />
             </FormControl>
             <HStack mt={3}>
-              <Button colorScheme="blue" onClick={handleSaveLesson}>Save Lesson</Button>
-              <Button colorScheme="red" onClick={() => handleDeleteLesson(selected.id)}>Delete Lesson</Button>
-              <Button colorScheme="gray" onClick={handleClearTemporaryData}>Clear Temporary Data</Button>
+              <Button colorScheme="blue" onClick={handleSaveLesson}>
+                Save Lesson
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={() => handleDeleteLesson(selected.id)}
+              >
+                Delete Lesson
+              </Button>
+              <Button colorScheme="gray" onClick={handleClearTemporaryData}>
+                Clear Temporary Data
+              </Button>
             </HStack>
 
             {/* Quizzes Section */}
@@ -1431,7 +1823,9 @@ export default function CoursesAdmin() {
                 {(lesson.quizzes || []).map((q) => (
                   <Box key={q.id} borderWidth={1} borderRadius="md" p={3}>
                     <Flex justify="space-between" align="center">
-                      <Text>Quiz: {q.id} — Passing: {q.passing_score}</Text>
+                      <Text>
+                        Quiz: {q.id} — Passing: {q.passing_score}
+                      </Text>
                       <HStack>
                         <Button
                           size="xs"
@@ -1456,20 +1850,32 @@ export default function CoursesAdmin() {
                         >
                           <Box flex="1">
                             <Text fontWeight="semibold">Q{idx + 1}</Text>
-                            <RichTextView content={parseContent(qq.question_text)} />
-                            <Text fontSize="sm" mt={1}>Options: {qq.options?.join(", ")}</Text>
-                            <Text fontSize="sm">Correct: {qq.correct_answer?.join(", ")}</Text>
+                            <RichTextView
+                              content={parseContent(qq.question_text)}
+                            />
+                            <Text fontSize="sm" mt={1}>
+                              Options: {qq.options?.join(", ")}
+                            </Text>
+                            <Text fontSize="sm">
+                              Correct: {qq.correct_answer?.join(", ")}
+                            </Text>
                             {qq.explanation?.text && (
                               <Box mt={1}>
-                                <Text fontSize="sm" fontWeight="semibold">Explanation:</Text>
-                                <RichTextView content={parseContent(qq.explanation.text)} />
+                                <Text fontSize="sm" fontWeight="semibold">
+                                  Explanation:
+                                </Text>
+                                <RichTextView
+                                  content={parseContent(qq.explanation.text)}
+                                />
                               </Box>
                             )}
                           </Box>
                           <Button
                             size="xs"
                             colorScheme="red"
-                            onClick={() => handleDeleteQuestion(q.id, qq.id, lesson.id)}
+                            onClick={() =>
+                              handleDeleteQuestion(q.id, qq.id, lesson.id)
+                            }
                           >
                             Delete
                           </Button>
@@ -1511,7 +1917,9 @@ export default function CoursesAdmin() {
                               )
                             }
                           >
-                            {newCorrect.includes(i) ? "Correct ✓" : "Mark Correct"}
+                            {newCorrect.includes(i)
+                              ? "Correct ✓"
+                              : "Mark Correct"}
                           </Button>
                         </FormControl>
                       ))}
@@ -1546,40 +1954,95 @@ export default function CoursesAdmin() {
         return null;
     }
   }, [
-    selected, treeFinders, courseTitle, courseDescription, moduleTitle, unitTitle, 
-    lessonTitle, lessonOrder, lessonContent, newQuestionText, newOptions, newCorrect, 
-    newExplanation, handleCourseTitleChange, handleCourseDescriptionChange, 
-    handleModuleTitleChange, handleUnitTitleChange, handleLessonTitleChange, 
-    handleLessonOrderChange, handleSaveCourse, handleDeleteCourse, handleSaveModule, 
-    handleDeleteModule, handleSaveUnit, handleDeleteUnit, handleSaveLesson, 
-    handleDeleteLesson, handleAddQuiz, handleDeleteQuiz, handleDeleteQuestion, 
-    handleAddQuestion, trackChanges, parseContent, handleClearTemporaryData
+    selected,
+    treeFinders,
+    courseTitle,
+    courseDescription,
+    moduleTitle,
+    unitTitle,
+    lessonTitle,
+    lessonOrder,
+    lessonContent,
+    newQuestionText,
+    newOptions,
+    newCorrect,
+    newExplanation,
+    handleCourseTitleChange,
+    handleCourseDescriptionChange,
+    handleModuleTitleChange,
+    handleUnitTitleChange,
+    handleLessonTitleChange,
+    handleLessonOrderChange,
+    handleSaveCourse,
+    handleDeleteCourse,
+    handleSaveModule,
+    handleDeleteModule,
+    handleSaveUnit,
+    handleDeleteUnit,
+    handleSaveLesson,
+    handleDeleteLesson,
+    handleAddQuiz,
+    handleDeleteQuiz,
+    handleDeleteQuestion,
+    handleAddQuestion,
+    trackChanges,
+    parseContent,
+    handleClearTemporaryData,
   ]);
 
   return (
     <>
-      <AlertDialog isOpen={showConfirm} leastDestructiveRef={cancelRef} onClose={cancelAction} isCentered>
+      <AlertDialog
+        isOpen={showConfirm}
+        leastDestructiveRef={cancelRef}
+        onClose={cancelAction}
+        isCentered
+      >
         <AlertDialogOverlay>
           <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">Unsaved Changes</AlertDialogHeader>
-            <AlertDialogBody>You have unsaved changes. Are you sure you want to leave? All unsaved changes will be lost.</AlertDialogBody>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Unsaved Changes
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              You have unsaved changes. Are you sure you want to leave? All
+              unsaved changes will be lost.
+            </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={cancelAction}>Stay on Page</Button>
-              <Button colorScheme="red" onClick={confirmAction} ml={3}>Leave Anyway</Button>
+              <Button ref={cancelRef} onClick={cancelAction}>
+                Stay on Page
+              </Button>
+              <Button colorScheme="red" onClick={confirmAction} ml={3}>
+                Leave Anyway
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
 
       <Flex gap={4} align="stretch" p={4}>
-        <Box width="38%" maxH="80vh" overflowY="auto" borderRightWidth={1} pr={3}>
+        <Box
+          width="38%"
+          maxH="80vh"
+          overflowY="auto"
+          borderRightWidth={1}
+          pr={3}
+        >
           <Flex justify="space-between" align="center" mb={3}>
             <Heading size="sm">Content Tree</Heading>
-            <Button size="sm" onClick={handleCreateCourse} leftIcon={Icon(PlusIcon, { width: 6, height: 6 })}>
+            <Button
+              size="sm"
+              onClick={handleCreateCourse}
+              leftIcon={Icon(PlusIcon, { width: 6, height: 6 })}
+            >
               Add Course
             </Button>
           </Flex>
-          <Input placeholder="Search courses..." mb={3} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            placeholder="Search courses..."
+            mb={3}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           {loading ? <Spinner /> : <Stack spacing={2}>{renderTree}</Stack>}
         </Box>
 
