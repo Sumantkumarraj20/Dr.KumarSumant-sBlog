@@ -9,27 +9,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     switch (req.method) {
+      case 'GET':
+        // If you need a standalone lessons endpoint
+        const { data: lessons, error } = await supabaseServer
+          .from('lessons')
+          .select('*')
+          .order('order_index', { ascending: true })
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return res.json(lessons || []);
+
       case 'POST':
-        const { title, unit_id, order_index } = req.body;
-        const { data: newLesson, error } = await supabaseServer
-          .from('course_lessons')
+        const { title, unit_id, order_index, content } = req.body;
+        const { data: newLesson, error: createError } = await supabaseServer
+          .from('lessons')
           .insert([{ 
             title, 
             unit_id, 
             order_index,
-            content: { type: "doc", content: [] }
+            content: content || { type: "doc", content: [] }
           }])
           .select()
           .single();
         
-        if (error) throw error;
+        if (createError) throw createError;
         return res.status(201).json(newLesson);
 
       case 'PUT':
-        const { id, ...updateData } = req.body;
+        const { id, title: updateTitle, order_index: updateOrderIndex, content: updateContent } = req.body;
         const { data: updatedLesson, error: updateError } = await supabaseServer
-          .from('course_lessons')
-          .update(updateData)
+          .from('lessons')
+          .update({ 
+            title: updateTitle,
+            ...(updateOrderIndex !== undefined && { order_index: updateOrderIndex }),
+            ...(updateContent !== undefined && { content: updateContent })
+          })
           .eq('id', id)
           .select()
           .single();
@@ -40,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'DELETE':
         const { id: deleteId } = req.body;
         const { error: deleteError } = await supabaseServer
-          .from('course_lessons')
+          .from('lessons')
           .delete()
           .eq('id', deleteId);
         
@@ -48,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(204).end();
 
       default:
-        res.setHeader('Allow', ['POST', 'PUT', 'DELETE']);
+        res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
         return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error: any) {

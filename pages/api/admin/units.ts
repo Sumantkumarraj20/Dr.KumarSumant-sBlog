@@ -9,22 +9,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     switch (req.method) {
+      case 'GET':
+        // If you need a standalone units endpoint
+        const { data: units, error } = await supabaseServer
+          .from('units')
+          .select('*')
+          .order('order_index', { ascending: true })
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return res.json(units || []);
+
       case 'POST':
         const { title, module_id, order_index } = req.body;
-        const { data: newUnit, error } = await supabaseServer
-          .from('course_units')
+        const { data: newUnit, error: createError } = await supabaseServer
+          .from('units')
           .insert([{ title, module_id, order_index }])
           .select()
           .single();
         
-        if (error) throw error;
+        if (createError) throw createError;
         return res.status(201).json(newUnit);
 
       case 'PUT':
-        const { id, title: updateTitle } = req.body;
+        const { id, title: updateTitle, order_index: updateOrderIndex } = req.body;
         const { data: updatedUnit, error: updateError } = await supabaseServer
-          .from('course_units')
-          .update({ title: updateTitle })
+          .from('units')
+          .update({ 
+            title: updateTitle,
+            ...(updateOrderIndex !== undefined && { order_index: updateOrderIndex })
+          })
           .eq('id', id)
           .select()
           .single();
@@ -35,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'DELETE':
         const { id: deleteId } = req.body;
         const { error: deleteError } = await supabaseServer
-          .from('course_units')
+          .from('units')
           .delete()
           .eq('id', deleteId);
         
@@ -43,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(204).end();
 
       default:
-        res.setHeader('Allow', ['POST', 'PUT', 'DELETE']);
+        res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
         return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error: any) {

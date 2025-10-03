@@ -9,22 +9,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     switch (req.method) {
+      case 'GET':
+        // If you need a standalone modules endpoint
+        const { data: modules, error } = await supabaseServer
+          .from('modules')
+          .select('*')
+          .order('order_index', { ascending: true })
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return res.json(modules || []);
+
       case 'POST':
         const { title, course_id, order_index } = req.body;
-        const { data: newModule, error } = await supabaseServer
-          .from('course_modules')
+        const { data: newModule, error: createError } = await supabaseServer
+          .from('modules')
           .insert([{ title, course_id, order_index }])
           .select()
           .single();
         
-        if (error) throw error;
+        if (createError) throw createError;
         return res.status(201).json(newModule);
 
       case 'PUT':
-        const { id, title: updateTitle } = req.body;
+        const { id, title: updateTitle, order_index: updateOrderIndex } = req.body;
         const { data: updatedModule, error: updateError } = await supabaseServer
-          .from('course_modules')
-          .update({ title: updateTitle })
+          .from('modules')
+          .update({ 
+            title: updateTitle,
+            ...(updateOrderIndex !== undefined && { order_index: updateOrderIndex })
+          })
           .eq('id', id)
           .select()
           .single();
@@ -35,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'DELETE':
         const { id: deleteId } = req.body;
         const { error: deleteError } = await supabaseServer
-          .from('course_modules')
+          .from('modules')
           .delete()
           .eq('id', deleteId);
         
@@ -43,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(204).end();
 
       default:
-        res.setHeader('Allow', ['POST', 'PUT', 'DELETE']);
+        res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
         return res.status(405).end(`Method ${req.method} Not Allowed`);
     }
   } catch (error: any) {

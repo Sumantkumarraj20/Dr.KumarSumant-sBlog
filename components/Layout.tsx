@@ -42,6 +42,7 @@ import {
   PencilSquareIcon,
   Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { AnimatePresence, motion } from "framer-motion";
 
 const MotionBox = motion.create ? motion.create(Box) : motion(Box);
@@ -89,6 +90,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Flex direction="column" minH="100vh" bg={bodyBg} color={textColor}>
+        <SpeedInsights/>
         {/* Global loader overlay */}
         <GlobalLoader />
 

@@ -2,18 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { supabaseServer } from '@/lib/supabase-server';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Simple token-based auth (we'll improve this later)
   const authHeader = req.headers.authorization;
-  
-  interface CourseResponse {
-  id: string;
-  title: string;
-  description?: string;
-  created_by?: string;
-  created_at?: string;
-  modules?: any[];
-}
-
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing authentication' });
   }
@@ -25,11 +14,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .from('courses')
           .select(`
             *,
-            modules:course_modules(
+            modules:modules(
               *,
-              units:course_units(
+              units:units(
                 *,
-                lessons:course_lessons(
+                lessons:lessons(
                   *,
                   quizzes:quizzes(
                     *,
@@ -41,8 +30,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           `)
           .order('created_at', { ascending: false });
         
-        if (error) throw error;
-        return res.json(courses as CourseResponse[]);
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
+
+        // Sort courses and their nested relationships by order_index
+        const sortedCourses = (courses || []).map(course => ({
+          ...course,
+          modules: (course.modules || [])
+            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+            .map(module => ({
+              ...module,
+              units: (module.units || [])
+                .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+                .map(unit => ({
+                  ...unit,
+                  lessons: (unit.lessons || [])
+                    .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+                    .map(lesson => ({
+                      ...lesson,
+                      quizzes: (lesson.quizzes || [])
+                        // Quizzes might not have order_index, sort by created_at
+                        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                        .map(quiz => ({
+                          ...quiz,
+                          questions: (quiz.questions || [])
+                            // Questions might not have order_index, sort by created_at
+                            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                        }))
+                    }))
+                }))
+            }))
+        }));
+
+        return res.json(sortedCourses);
 
       case 'POST':
         const { title, description, user_id } = req.body;
