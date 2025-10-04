@@ -9,7 +9,6 @@ class MyDocument extends Document {
   }
 
   render() {
-    // Get the current locale from the page props
     const currentLocale = (this.props.__NEXT_DATA__.query.locale as string) || 
                          i18nextConfig.i18n.defaultLocale;
 
@@ -36,13 +35,19 @@ class MyDocument extends Document {
             href="https://api.cloudinary.com" 
           />
           
+          {/* FIX: Add CORP header for Cloudinary images */}
+          <link 
+            rel="preload" 
+            as="image" 
+            href="https://res.cloudinary.com" 
+            crossOrigin="anonymous" 
+          />
+          
           {/* Favicon and manifest */}
           <link rel="icon" href="/favicon.ico" />
           <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
           <link rel="manifest" href="/manifest.json" />
           
-          {/* REMOVED CSP meta tag - handled by middleware only */}
-          {/* Keep only the referrer meta tag */}
           <meta name="referrer" content="strict-origin-when-cross-origin" />
         </Head>
         <body>
