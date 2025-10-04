@@ -46,7 +46,7 @@ class MyDocument extends Document {
           {/* Favicon and manifest */}
           <link rel="icon" href="/favicon.ico" />
           <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-          <link rel="manifest" href="/manifest.json" />
+          <link rel="manifest" href="/site.webmanifest" />
           
           <meta name="referrer" content="strict-origin-when-cross-origin" />
         </Head>

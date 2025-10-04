@@ -1,4 +1,4 @@
-// components/SEO.tsx
+// components/SEO.tsx - Keep your existing, just remove duplicate viewport
 'use client';
 
 import Head from 'next/head';
@@ -47,7 +47,6 @@ export default function SEO({
   nofollow = false,
 }: SEOProps) {
   
-  // Memoize structured data to prevent unnecessary re-renders
   const structuredData = useMemo(() => ({
     "@context": "https://schema.org",
     "@type": ogType === 'article' ? "Article" : "MedicalWebPage",
@@ -81,7 +80,6 @@ export default function SEO({
     })
   }), [title, description, canonical, ogType, publishedTime, modifiedTime, section, tags, author]);
 
-  // Memoize robots meta content
   const robotsContent = useMemo(() => {
     if (noindex && nofollow) return 'noindex, nofollow';
     if (noindex) return 'noindex, follow';
@@ -102,7 +100,7 @@ export default function SEO({
       {/* Canonical URL */}
       <link rel="canonical" href={canonical} />
 
-      {/* Open Graph Meta Tags - LinkedIn uses these primarily */}
+      {/* Open Graph Meta Tags */}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:type" content={ogType} />
@@ -111,19 +109,19 @@ export default function SEO({
       <meta property="og:site_name" content={DEFAULT_SEO.siteName} />
       <meta property="og:locale" content="en_US" />
       
-      {/* LinkedIn Specific Open Graph Tags */}
+      {/* LinkedIn Specific */}
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
       <meta property="og:image:alt" content={title} />
       <meta property="og:see_also" content={DEFAULT_SEO.linkedinProfile} />
 
-      {/* Additional Social Meta Tags */}
+      {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
 
-      {/* Article Specific Meta Tags */}
+      {/* Article Specific */}
       {publishedTime && (
         <meta property="article:published_time" content={publishedTime} />
       )}
@@ -137,12 +135,11 @@ export default function SEO({
         <meta key={tag} property="article:tag" content={tag} />
       ))}
 
-      {/* Performance & Security Meta Tags */}
+      {/* REMOVED viewport meta tag - handled by _app.tsx */}
       <meta name="referrer" content="strict-origin-when-cross-origin" />
       <meta httpEquiv="x-ua-compatible" content="IE=edge" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-      {/* Structured Data - JSON-LD */}
+      {/* Structured Data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
@@ -152,17 +149,11 @@ export default function SEO({
       {/* Preload Critical Resources */}
       <link rel="preconnect" href="https://www.linkedin.com" />
       <link rel="dns-prefetch" href="https://www.linkedin.com" />
-      
-      {/* Favicon Links */}
-      <link rel="icon" href="/favicon.ico" sizes="any" />
-      <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-      <link rel="manifest" href="/site.webmanifest" />
     </Head>
   );
 }
 
-// Helper component for common SEO patterns
+// Your existing helper components remain the same
 export function ArticleSEO({
   title,
   description,

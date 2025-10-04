@@ -17,11 +17,16 @@ import {
   ModalContent,
   ModalBody,
   ModalCloseButton,
+  ModalHeader,
+  ModalFooter,
   Flex,
   Image as ChakraImage,
+  Tooltip,
+  Badge,
+  HStack,
 } from "@chakra-ui/react";
 import { JSONContent } from "@tiptap/react";
-import { FaExpand, FaCompress } from "react-icons/fa";
+import { FaExpand, FaCompress, FaDownload, FaExternalLinkAlt } from "react-icons/fa";
 
 interface RichTextViewProps {
   content: JSONContent | string | null;
@@ -89,7 +94,7 @@ const renderContentToHTML = (content: JSONContent): string => {
 
         switch (mark.type) {
           case "bold":
-            htmlText = `<strong class="font-semibold">${htmlText}</strong>`;
+            htmlText = `<strong class="font-semibold text-gray-900 dark:text-white">${htmlText}</strong>`;
             break;
           case "italic":
             htmlText = `<em class="italic">${htmlText}</em>`;
@@ -98,17 +103,17 @@ const renderContentToHTML = (content: JSONContent): string => {
             htmlText = `<u class="underline">${htmlText}</u>`;
             break;
           case "strike":
-            htmlText = `<s class="line-through">${htmlText}</s>`;
+            htmlText = `<s class="line-through text-gray-500">${htmlText}</s>`;
             break;
           case "link":
             const href = mark.attrs?.href || "#";
             const target = mark.attrs?.target || "_blank";
             const rel = mark.attrs?.rel || "noopener noreferrer";
-            htmlText = `<a href="${href}" target="${target}" rel="${rel}" class="text-link hover:text-link-hover underline transition-colors duration-200">${htmlText}</a>`;
+            htmlText = `<a href="${href}" target="${target}" rel="${rel}" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline transition-colors duration-200 inline-flex items-center gap-1">${htmlText} <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 6a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V7a1 1 0 011-1z" clip-rule="evenodd"></path></svg></a>`;
             break;
           case "highlight":
             const color = mark.attrs?.color || "#FFEB3B";
-            htmlText = `<mark style="background-color: ${color}" class="px-1 rounded bg-highlight">${htmlText}</mark>`;
+            htmlText = `<mark style="background-color: ${color}" class="px-1 rounded bg-yellow-200 dark:bg-yellow-600">${htmlText}</mark>`;
             break;
           case "textStyle":
             if (mark.attrs?.color) {
@@ -116,7 +121,7 @@ const renderContentToHTML = (content: JSONContent): string => {
             }
             break;
           case "code":
-            htmlText = `<code class="bg-code rounded px-1 py-0.5 font-mono text-sm">${htmlText}</code>`;
+            htmlText = `<code class="bg-gray-100 dark:bg-gray-700 rounded px-1.5 py-0.5 font-mono text-sm border border-gray-300 dark:border-gray-600">${htmlText}</code>`;
             break;
           default:
             break;
@@ -147,39 +152,40 @@ const renderContentToHTML = (content: JSONContent): string => {
       break;
 
     case "paragraph":
-      html = `<p${classAttr}${alignAttr} class="paragraph">${childrenHTML}</p>`;
+      html = `<p${classAttr}${alignAttr} class="paragraph mb-6 leading-relaxed">${childrenHTML}</p>`;
       break;
 
     case "heading":
       const level = Math.min(Math.max(attrs?.level || 1, 1), 6);
-      html = `<h${level}${classAttr}${alignAttr} class="heading heading-${level}">${childrenHTML}</h${level}>`;
+      const headingClass = `heading heading-${level} font-bold text-gray-900 dark:text-white mb-4 mt-8 first:mt-0`;
+      html = `<h${level}${classAttr}${alignAttr} class="${headingClass}">${childrenHTML}</h${level}>`;
       break;
 
     case "bulletList":
-      html = `<ul${classAttr} class="bullet-list">${childrenHTML}</ul>`;
+      html = `<ul${classAttr} class="bullet-list mb-6">${childrenHTML}</ul>`;
       break;
 
     case "orderedList":
-      html = `<ol${classAttr} class="ordered-list">${childrenHTML}</ol>`;
+      html = `<ol${classAttr} class="ordered-list mb-6">${childrenHTML}</ol>`;
       break;
 
     case "listItem":
-      html = `<li${classAttr} class="list-item">${childrenHTML}</li>`;
+      html = `<li${classAttr} class="list-item mb-3 leading-relaxed">${childrenHTML}</li>`;
       break;
 
     case "blockquote":
-      html = `<blockquote${classAttr} class="blockquote">${childrenHTML}</blockquote>`;
+      html = `<blockquote${classAttr} class="blockquote border-l-4 border-blue-500 pl-6 py-4 my-6 bg-blue-50 dark:bg-blue-900/20 italic text-gray-700 dark:text-gray-300">${childrenHTML}</blockquote>`;
       break;
 
     case "codeBlock":
       const language = attrs?.language
         ? ` data-language="${attrs.language}"`
         : "";
-      html = `<pre${classAttr}${language} class="code-block"><code>${childrenHTML}</code></pre>`;
+      html = `<div class="code-block-wrapper my-6"><pre${classAttr}${language} class="code-block bg-gray-900 text-gray-100 p-6 rounded-lg overflow-x-auto text-sm font-mono relative"><code>${childrenHTML}</code></pre></div>`;
       break;
 
     case "horizontalRule":
-      html = `<hr${classAttr} class="horizontal-rule" />`;
+      html = `<hr${classAttr} class="horizontal-rule my-8 border-t border-gray-300 dark:border-gray-600" />`;
       break;
 
     case "hardBreak":
@@ -190,32 +196,41 @@ const renderContentToHTML = (content: JSONContent): string => {
       const src = attrs?.src || "";
       const alt = attrs?.alt || "";
       const title = attrs?.title || "";
-      html = `<div class="image-container"><img src="${src}" alt="${alt}" title="${title}" class="rich-text-image" loading="lazy" data-src="${src}" /></div>`;
+      const imageClass = "rich-text-image cursor-zoom-in transition-all duration-300";
+      const imageHtml = `<img src="${src}" alt="${alt}" title="${title}" crossOrigin="anonymous" class="${imageClass}" loading="lazy" data-src="${src}" data-alt="${alt}" data-title="${title}" />`;
+      
+      // Wrap image with caption if title exists
+      if (title) {
+        html = `<figure class="image-container my-8 text-center">${imageHtml}<figcaption class="mt-3 text-sm text-gray-600 dark:text-gray-400 italic">${title}</figcaption></figure>`;
+      } else {
+        html = `<div class="image-container my-8 text-center">${imageHtml}</div>`;
+      }
       break;
 
     case "table":
-      html = `<div class="table-container"><table${classAttr} class="rich-text-table">${childrenHTML}</table></div>`;
+      html = `<div class="table-container my-6 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">${childrenHTML}</div>`;
       break;
 
     case "tableRow":
-      html = `<tr${classAttr} class="table-row">${childrenHTML}</tr>`;
+      html = `<tr${classAttr} class="table-row border-b border-gray-200 dark:border-gray-700 last:border-b-0">${childrenHTML}</tr>`;
       break;
 
     case "tableHeader":
-      html = `<th${classAttr} class="table-header">${childrenHTML}</th>`;
+      html = `<th${classAttr} class="table-header bg-gray-50 dark:bg-gray-800 font-semibold text-left p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white">${childrenHTML}</th>`;
       break;
 
     case "tableCell":
-      html = `<td${classAttr} class="table-cell">${childrenHTML}</td>`;
+      html = `<td${classAttr} class="table-cell p-4 border-r border-gray-200 dark:border-gray-700 last:border-r-0 align-top">${childrenHTML}</td>`;
       break;
 
     case "taskList":
-      html = `<ul${classAttr} class="task-list">${childrenHTML}</ul>`;
+      html = `<ul${classAttr} class="task-list mb-6 space-y-2">${childrenHTML}</ul>`;
       break;
 
     case "taskItem":
       const checked = attrs?.checked ? "checked" : "";
-      html = `<li${classAttr} class="task-item"><input type="checkbox" ${checked} disabled class="task-checkbox" /><span class="task-content">${childrenHTML}</span></li>`;
+      const checkedClass = attrs?.checked ? "line-through text-gray-500" : "";
+      html = `<li${classAttr} class="task-item flex items-start gap-3"><input type="checkbox" ${checked} disabled class="task-checkbox mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" /><span class="task-content ${checkedClass} flex-1">${childrenHTML}</span></li>`;
       break;
 
     case "text":
@@ -241,8 +256,7 @@ export function RichTextView({
 }: RichTextViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hasRendered, setHasRendered] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string; title: string } | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   // Chakra UI color values
@@ -252,16 +266,6 @@ export function RichTextView({
   );
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const textColor = useColorModeValue("gray.500", "gray.400");
-  const proseText = useColorModeValue("gray.800", "gray.200");
-  const proseHeading = useColorModeValue("gray.900", "white");
-  const codeBg = useColorModeValue("gray.100", "gray.700");
-  const tableBorder = useColorModeValue("gray.300", "gray.500");
-  const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
-  const linkColor = useColorModeValue("blue.600", "blue.400");
-  const linkHover = useColorModeValue("blue.700", "blue.300");
-  const highlightBg = useColorModeValue("yellow.200", "yellow.600");
-  const blockquoteBg = useColorModeValue("blue.50", "blue.900");
-  const blockquoteBorder = useColorModeValue("blue.500", "blue.400");
 
   // Content normalization
   const normalizedContent = useMemo((): JSONContent => {
@@ -370,9 +374,11 @@ export function RichTextView({
         images.forEach((imgElement) => {
           const img = imgElement as HTMLImageElement;
           const src = img.getAttribute("data-src") || img.src;
+          const alt = img.getAttribute("data-alt") || img.alt;
+          const title = img.getAttribute("data-title") || "";
 
           img.onclick = () => {
-            setSelectedImage(src);
+            setSelectedImage({ src, alt, title });
             onOpen();
           };
 
@@ -383,32 +389,37 @@ export function RichTextView({
           };
         });
 
-        // Enhance tables
-        const tables = container.querySelectorAll(".rich-text-table");
-        tables.forEach((tableElement) => {
-          const table = tableElement as HTMLTableElement;
-          if (!table.parentElement?.classList.contains("table-container")) {
-            const wrapper = document.createElement("div");
-            wrapper.className = "table-container";
-            table.parentNode?.insertBefore(wrapper, table);
-            wrapper.appendChild(table);
-          }
-        });
-
         // Add copy functionality to code blocks
         const codeBlocks = container.querySelectorAll(".code-block");
         codeBlocks.forEach((preElement) => {
           const pre = preElement as HTMLPreElement;
           if (!pre.querySelector(".copy-button")) {
             const button = document.createElement("button");
-            button.className = "copy-button";
-            button.textContent = "Copy";
+            button.className = "copy-button absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors duration-200";
+            button.innerHTML = `
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+              </svg>
+              Copy
+            `;
             button.onclick = async () => {
               const code = pre.querySelector("code")?.textContent || "";
               try {
                 await navigator.clipboard.writeText(code);
-                button.textContent = "Copied!";
-                setTimeout(() => (button.textContent = "Copy"), 2000);
+                button.innerHTML = `
+                  <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  Copied!
+                `;
+                setTimeout(() => {
+                  button.innerHTML = `
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    Copy
+                  `;
+                }, 2000);
               } catch (err) {
                 console.error("Failed to copy code:", err);
               }
@@ -427,6 +438,24 @@ export function RichTextView({
     const frameId = requestAnimationFrame(enhanceRenderedContent);
     return () => cancelAnimationFrame(frameId);
   }, [htmlContent, onOpen]);
+
+  // Handle image download
+  const handleDownloadImage = () => {
+    if (!selectedImage) return;
+    
+    const link = document.createElement('a');
+    link.href = selectedImage.src;
+    link.download = selectedImage.alt || 'image';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Handle open image in new tab
+  const handleOpenImage = () => {
+    if (!selectedImage) return;
+    window.open(selectedImage.src, '_blank');
+  };
 
   // Loading state
   if (isLoading) {
@@ -471,31 +500,14 @@ export function RichTextView({
   return (
     <>
       <Box
-        className={isFullscreen ? "fixed inset-0 z-50 p-6" : "relative"}
-        position={isFullscreen ? "fixed" : "relative"}
+        position="relative"
         borderWidth={showBorder ? 1 : 0}
         borderColor={borderColor}
         borderRadius="lg"
         bg={bgColor}
-        p={4}
+        p={6}
         shadow={showBorder ? "sm" : "none"}
       >
-        {/* Fullscreen toggle */}
-        <Flex justify="flex-end" mb={3}>
-          <Tooltip
-            label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          >
-            <IconButton
-              size="sm"
-              icon={isFullscreen ? <FaCompress /> : <FaExpand />}
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              aria-label="Toggle fullscreen"
-              variant="ghost"
-              colorScheme="blue"
-            />
-          </Tooltip>
-        </Flex>
-
         {/* Content */}
         <Box
           ref={containerRef}
@@ -505,189 +517,201 @@ export function RichTextView({
           maxHeight={maxHeight}
           overflowY={maxHeight ? "auto" : "visible"}
           sx={{
-            // Base styles
-            color: proseText,
+            // Base styles for professional e-learning appearance
+            color: "gray.700",
+            _dark: { color: "gray.200" },
             lineHeight: "1.75",
-            fontSize: "1rem",
+            fontSize: "1.125rem",
+            fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
 
             // Content wrapper
             "& .rich-text-content": {
               width: "100%",
+              maxWidth: "none",
             },
 
-            // Paragraphs
+            // Enhanced Paragraphs with better spacing
             "& .paragraph": {
-              marginBottom: "1.25rem",
-              lineHeight: "1.75",
-              "&[data-align='center']": { textAlign: "center" },
-              "&[data-align='right']": { textAlign: "right" },
-              "&[data-align='justify']": { textAlign: "justify" },
+              marginBottom: "1.5rem",
+              lineHeight: "1.8",
+              fontSize: "1.125rem",
+              color: "gray.700",
+              _dark: { color: "gray.200" },
+              "&[data-align='center']": { 
+                textAlign: "center",
+              },
+              "&[data-align='right']": { 
+                textAlign: "right",
+              },
+              "&[data-align='justify']": { 
+                textAlign: "justify",
+              },
             },
 
-            // Headings
+            // Professional Headings
             "& .heading": {
-              fontWeight: "bold",
-              color: proseHeading,
-              marginTop: "2rem",
-              marginBottom: "1rem",
+              fontWeight: "700",
+              color: "gray.900",
+              _dark: { color: "white" },
+              marginTop: "2.5rem",
+              marginBottom: "1.5rem",
               lineHeight: "1.3",
               "&[data-align='center']": { textAlign: "center" },
               "&[data-align='right']": { textAlign: "right" },
             },
-            "& .heading-1": { fontSize: ["2rem", "2.5rem"], marginTop: "0" },
-            "& .heading-2": { fontSize: ["1.75rem", "2rem"] },
-            "& .heading-3": { fontSize: ["1.5rem", "1.75rem"] },
+            "& .heading-1": { 
+              fontSize: ["2.25rem", "2.5rem"], 
+              marginTop: "0",
+              borderBottom: "2px solid",
+              borderColor: "blue.500",
+              paddingBottom: "0.5rem",
+            },
+            "& .heading-2": { 
+              fontSize: ["1.875rem", "2rem"],
+              borderBottom: "1px solid",
+              borderColor: "gray.200",
+              _dark: { borderColor: "gray.600" },
+              paddingBottom: "0.375rem",
+            },
+            "& .heading-3": { 
+              fontSize: ["1.5rem", "1.75rem"],
+              color: "blue.600",
+              _dark: { color: "blue.400" },
+            },
 
-            // Lists
+            // Enhanced Multi-level Lists
             "& .bullet-list": {
               listStyleType: "disc",
-              paddingLeft: "1.5rem",
-              marginBottom: "1.25rem",
+              paddingLeft: "2rem",
+              marginBottom: "1.5rem",
               "& .bullet-list": {
                 listStyleType: "circle",
-                marginTop: "0.5rem",
+                marginTop: "0.75rem",
+                marginBottom: "0.5rem",
               },
-              "& .bullet-list .bullet-list": { listStyleType: "square" },
+              "& .bullet-list .bullet-list": { 
+                listStyleType: "square",
+              },
             },
             "& .ordered-list": {
               listStyleType: "decimal",
-              paddingLeft: "1.5rem",
-              marginBottom: "1.25rem",
+              paddingLeft: "2rem",
+              marginBottom: "1.5rem",
               "& .ordered-list": {
                 listStyleType: "lower-alpha",
-                marginTop: "0.5rem",
+                marginTop: "0.75rem",
+                marginBottom: "0.5rem",
               },
-              "& .ordered-list .ordered-list": { listStyleType: "lower-roman" },
+              "& .ordered-list .ordered-list": { 
+                listStyleType: "lower-roman",
+              },
             },
             "& .list-item": {
-              marginBottom: "0.5rem",
-              lineHeight: "1.75",
-            },
-            "& .rich-text-bullet-list": {
-              listStyleType: "disc",
-              paddingLeft: "1.5rem",
-              margin: "0.5rem 0",
-              "& .rich-text-bullet-list": {
-                listStyleType: "circle",
-                margin: "0.25rem 0",
-                "& .rich-text-bullet-list": {
-                  listStyleType: "square",
-                  margin: "0.25rem 0",
-                  "& .rich-text-bullet-list": {
-                    listStyleType: "disc",
-                    margin: "0.25rem 0",
-                  },
-                },
-              },
-            },
-            "& .rich-text-ordered-list": {
-              listStyleType: "decimal",
-              paddingLeft: "1.5rem",
-              margin: "0.5rem 0",
-              "& .rich-text-ordered-list": {
-                listStyleType: "lower-alpha",
-                margin: "0.25rem 0",
-                "& .rich-text-ordered-list": {
-                  listStyleType: "lower-roman",
-                  margin: "0.25rem 0",
-                  "& .rich-text-ordered-list": {
-                    listStyleType: "decimal",
-                    margin: "0.25rem 0",
-                  },
-                },
-              },
+              marginBottom: "0.75rem",
+              lineHeight: "1.7",
+              fontSize: "1.125rem",
             },
 
-            // Blockquotes
+            // Professional Blockquotes
             "& .blockquote": {
-              borderLeft: `4px solid ${blockquoteBorder}`,
-              paddingLeft: "1rem",
+              borderLeftWidth: "4px",
+              borderLeftColor: "blue.500",
+              paddingLeft: "1.5rem",
+              paddingTop: "1rem",
+              paddingBottom: "1rem",
+              margin: "2rem 0",
+              backgroundColor: "blue.50",
+              _dark: { backgroundColor: "blue.900/20" },
               fontStyle: "italic",
-              backgroundColor: blockquoteBg,
-              padding: "1rem",
-              margin: "1.5rem 0",
-              borderRadius: "0 0.5rem 0.5rem 0",
+              borderRadius: "0 8px 8px 0",
+              fontSize: "1.125rem",
             },
 
-            // Code blocks
+            // Enhanced Code Blocks
+            "& .code-block-wrapper": {
+              margin: "2rem 0",
+            },
             "& .code-block": {
               position: "relative",
-              backgroundColor: codeBg,
+              backgroundColor: "gray.900",
+              color: "gray.100",
               padding: "1.5rem",
-              borderRadius: "0.5rem",
-              margin: "1.5rem 0",
-              overflow: "auto",
+              borderRadius: "12px",
+              overflowX: "auto",
               fontSize: "0.875rem",
-              fontFamily: "monospace",
-              "& .copy-button": {
-                position: "absolute",
-                top: "0.5rem",
-                right: "0.5rem",
-                backgroundColor: "rgba(0,0,0,0.1)",
-                border: "none",
-                padding: "0.25rem 0.5rem",
-                borderRadius: "0.25rem",
-                fontSize: "0.75rem",
-                cursor: "pointer",
-                transition: "background-color 0.2s",
-                "&:hover": { backgroundColor: "rgba(0,0,0,0.2)" },
-              },
+              fontFamily: "'Fira Code', 'Monaco', 'Cascadia Code', monospace",
+              border: "1px solid",
+              borderColor: "gray.700",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
             },
 
-            // Images
+            // Professional Images
             "& .image-container": {
               textAlign: "center",
-              margin: "2rem 0",
+              margin: "3rem 0",
             },
             "& .rich-text-image": {
               maxWidth: "100%",
               height: "auto",
-              borderRadius: "0.75rem",
-              boxShadow:
-                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-              transition: "all 0.3s ease",
-              cursor: "pointer",
+              borderRadius: "12px",
+              boxShadow: "0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              cursor: "zoom-in",
+              border: "1px solid",
+              borderColor: "gray.200",
+              _dark: { borderColor: "gray.600" },
               "&:hover": {
-                transform: "scale(1.02)",
-                boxShadow:
-                  "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-              },
-              "&.image-error": {
-                border: `2px dashed ${borderColor}`,
-                padding: "2rem",
-                backgroundColor: "rgba(0,0,0,0.05)",
+                transform: "translateY(-2px)",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
               },
             },
 
-            // Tables
+            // Enhanced Tables
             "& .table-container": {
               overflowX: "auto",
-              margin: "2rem 0",
-              borderRadius: "0.75rem",
-              border: `1px solid ${tableBorder}`,
-              boxShadow:
-                "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+              margin: "2.5rem 0",
+              borderRadius: "12px",
+              border: "1px solid",
+              borderColor: "gray.200",
+              _dark: { borderColor: "gray.600" },
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
             },
             "& .rich-text-table": {
               width: "100%",
               borderCollapse: "collapse",
-              backgroundColor: bgColor,
+              backgroundColor: "white",
+              _dark: { backgroundColor: "gray.800" },
             },
             "& .table-header": {
-              backgroundColor: tableHeaderBg,
-              fontWeight: "bold",
-              padding: "1rem",
-              borderBottom: `2px solid ${tableBorder}`,
+              backgroundColor: "gray.50",
+              _dark: { backgroundColor: "gray.700", borderColor: "gray.600", color: "gray.300"  },
+              fontWeight: "600",
+              padding: "1rem 1.25rem",
+              borderBottom: "2px solid",
+              borderColor: "gray.200",
               textAlign: "left",
+              fontSize: "0.875rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: "gray.600",
             },
             "& .table-cell": {
-              padding: "1rem",
-              borderBottom: `1px solid ${tableBorder}`,
-              "&:not(:last-child)": { borderRight: `1px solid ${tableBorder}` },
+              padding: "1rem 1.25rem",
+              borderBottom: "1px solid",
+              borderColor: "gray.200",
+              _dark: { borderColor: "gray.600" },
+              "&:not(:last-child)": { 
+                borderRight: "1px solid",
+                borderColor: "gray.200",
+                _dark: { borderColor: "gray.600" },
+              },
             },
             "& .table-row": {
               transition: "background-color 0.2s",
-              "&:hover": { backgroundColor: "rgba(0,0,0,0.02)" },
+              "&:hover": { 
+                backgroundColor: "gray.50",
+                _dark: { backgroundColor: "gray.700" },
+              },
               "&:last-child .table-cell": { borderBottom: "none" },
             },
 
@@ -695,58 +719,67 @@ export function RichTextView({
             "& .task-list": {
               listStyle: "none",
               paddingLeft: "0",
-              marginBottom: "1.25rem",
+              marginBottom: "1.5rem",
+              spaceY: "0.5rem",
             },
             "& .task-item": {
               display: "flex",
               alignItems: "flex-start",
-              marginBottom: "0.5rem",
-              "& .task-checkbox": {
-                marginRight: "0.75rem",
-                marginTop: "0.25rem",
+              marginBottom: "0.75rem",
+              padding: "0.5rem",
+              borderRadius: "6px",
+              transition: "background-color 0.2s",
+              "&:hover": {
+                backgroundColor: "gray.50",
+                _dark: { backgroundColor: "gray.700" },
               },
-              "& .task-content": { flex: 1 },
             },
-
-            // Links
-            "& .text-link": { color: linkColor },
-            "& .text-link-hover": { color: linkHover },
-
-            // Highlight
-            "& .bg-highlight": { backgroundColor: highlightBg },
-
-            // Code inline
-            "& .bg-code": { backgroundColor: codeBg },
-
-            // Empty and error states
-            "& .empty-state, & .error-state": {
-              textAlign: "center",
-              padding: "3rem 2rem",
-              color: textColor,
-              fontStyle: "italic",
-            },
-            "& .error-state": { color: "red.500" },
 
             // Horizontal rule
             "& .horizontal-rule": {
               border: "none",
-              borderTop: `1px solid ${borderColor}`,
-              margin: "2rem 0",
+              borderTop: "2px solid",
+              borderColor: "gray.300",
+              _dark: { borderColor: "gray.600" },
+              margin: "3rem 0",
+            },
+
+            // Empty and error states
+            "& .empty-state, & .error-state": {
+              textAlign: "center",
+              padding: "4rem 2rem",
+              color: "gray.500",
+              _dark: { color: "gray.400" },
+              fontStyle: "italic",
+              fontSize: "1.125rem",
             },
 
             // Mobile responsiveness
             "@media (max-width: 768px)": {
-              fontSize: "0.875rem",
-              padding: "0.5rem",
-              "& .heading-1": { fontSize: "1.75rem" },
-              "& .heading-2": { fontSize: "1.5rem" },
+              fontSize: "1rem",
+              padding: "0",
+              "& .heading-1": { 
+                fontSize: "1.875rem",
+                paddingBottom: "0.375rem",
+              },
+              "& .heading-2": { 
+                fontSize: "1.5rem",
+                paddingBottom: "0.25rem",
+              },
               "& .heading-3": { fontSize: "1.25rem" },
+              "& .paragraph": {
+                fontSize: "1rem",
+                marginBottom: "1.25rem",
+              },
               "& .code-block": {
                 padding: "1rem",
                 fontSize: "0.75rem",
               },
               "& .table-header, & .table-cell": {
-                padding: "0.75rem 0.5rem",
+                padding: "0.75rem 1rem",
+              },
+              "& .bullet-list, & .ordered-list": {
+                paddingLeft: "1.5rem",
               },
             },
           }}
@@ -754,34 +787,95 @@ export function RichTextView({
         />
       </Box>
 
-      {/* Image modal for fullscreen view */}
-      <Modal isOpen={isOpen} onClose={onClose} size="full" isCentered>
-        <ModalOverlay />
-        <ModalContent bg="blackAlpha.800">
-          <ModalCloseButton color="white" zIndex={10} />
-          <ModalBody
+      {/* Enhanced Image Modal for fullscreen view */}
+      <Modal isOpen={isOpen} onClose={onClose} size="full" isCentered motionPreset="scale">
+        <ModalOverlay bg="blackAlpha.800" />
+        <ModalContent 
+          bg="transparent" 
+          boxShadow="none" 
+          maxW="95vw" 
+          maxH="95vh"
+          margin="0"
+        >
+          <ModalHeader 
+            bg="blackAlpha.600" 
+            color="white" 
+            borderTopRadius="lg"
             display="flex"
             alignItems="center"
-            justifyContent="center"
+            justifyContent="space-between"
+          >
+            <Box flex="1">
+              <Text fontSize="lg" fontWeight="600">
+                {selectedImage?.title || selectedImage?.alt || "Image Preview"}
+              </Text>
+              {selectedImage?.alt && selectedImage.alt !== selectedImage?.title && (
+                <Text fontSize="sm" color="gray.300" mt={1}>
+                  {selectedImage.alt}
+                </Text>
+              )}
+            </Box>
+            <HStack spacing={2}>
+              <Tooltip label="Download image">
+                <IconButton
+                  icon={<FaDownload />}
+                  aria-label="Download image"
+                  variant="ghost"
+                  color="white"
+                  _hover={{ bg: "whiteAlpha.200" }}
+                  onClick={handleDownloadImage}
+                />
+              </Tooltip>
+              <Tooltip label="Open in new tab">
+                <IconButton
+                  icon={<FaExternalLinkAlt />}
+                  aria-label="Open in new tab"
+                  variant="ghost"
+                  color="white"
+                  _hover={{ bg: "whiteAlpha.200" }}
+                  onClick={handleOpenImage}
+                />
+              </Tooltip>
+              <ModalCloseButton 
+                position="relative" 
+                top={0} 
+                right={0} 
+                color="white"
+                _hover={{ bg: "whiteAlpha.200" }}
+              />
+            </HStack>
+          </ModalHeader>
+          <ModalBody 
+            display="flex" 
+            alignItems="center" 
+            justifyContent="center" 
             p={0}
+            bg="blackAlpha.600"
           >
             {selectedImage && (
               <ChakraImage
-                src={selectedImage}
-                alt="Fullscreen view"
-                maxH="90vh"
-                maxW="90vw"
+                src={selectedImage.src}
+                alt={selectedImage.alt}
+                maxH="calc(95vh - 80px)"
+                maxW="calc(95vw - 40px)"
                 objectFit="contain"
                 onClick={onClose}
                 cursor="pointer"
+                borderRadius="lg"
               />
             )}
           </ModalBody>
+          <ModalFooter 
+            bg="blackAlpha.600" 
+            borderBottomRadius="lg"
+            justifyContent="center"
+          >
+            <Text color="gray.300" fontSize="sm">
+              Click anywhere to close • Scroll to zoom
+            </Text>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </>
   );
 }
-
-// Add Tooltip import and component
-import { Tooltip } from "@chakra-ui/react";

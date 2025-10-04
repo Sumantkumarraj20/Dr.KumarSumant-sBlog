@@ -202,6 +202,25 @@ export default function RichTextEditor({
     },
   });
 
+  // Enhanced list configuration for multi-level support
+  const CustomBulletList = BulletList.configure({
+    HTMLAttributes: {
+      class: "rich-text-bullet-list",
+    },
+  });
+
+  const CustomOrderedList = OrderedList.configure({
+    HTMLAttributes: {
+      class: "rich-text-ordered-list",
+    },
+  });
+
+  const CustomListItem = ListItem.configure({
+    HTMLAttributes: {
+      class: "rich-text-list-item",
+    },
+  });
+
   // Editor configuration
   const editor = useEditor({
     extensions: [
@@ -219,22 +238,15 @@ export default function RichTextEditor({
               "border-l-4 border-blue-500 pl-4 italic bg-blue-50 dark:bg-blue-900/20 py-2 my-4",
           },
         },
+        bulletList: false, // Disable default to use our custom one
+        orderedList: false, // Disable default to use our custom one
+        listItem: false, // Disable default to use our custom one
       }),
       Dropcursor.configure({ width: 2, color: "#3B82F6" }),
       Gapcursor,
-      BulletList.configure({
-        HTMLAttributes: {
-          class: "list-disc pl-6 my-4 space-y-2 rich-text-list",
-        },
-      }),
-      OrderedList.configure({
-        HTMLAttributes: {
-          class: "list-decimal pl-6 my-4 space-y-2 rich-text-list",
-        },
-      }),
-      ListItem.configure({
-        HTMLAttributes: { class: "leading-relaxed rich-text-list-item" },
-      }),
+      CustomBulletList,
+      CustomOrderedList,
+      CustomListItem,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -378,7 +390,6 @@ export default function RichTextEditor({
   }, [editor, mounted, value]);
 
   // Image upload handler with automatic responsive sizing
-  // Enhanced image upload handler with tracking
   const handleImageUpload = useCallback(
     async (file: File): Promise<void> => {
       if (!editor) return;
@@ -620,6 +631,7 @@ export default function RichTextEditor({
     },
     [editor]
   );
+
   // Add table delete function
   const deleteTable = useCallback(() => {
     if (!editor) return;
@@ -634,6 +646,17 @@ export default function RichTextEditor({
       });
     }
   }, [editor, toast]);
+
+  // Add indent/outdent functions for multi-level lists
+  const indentList = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus().sinkListItem("listItem").run();
+  }, [editor]);
+
+  const outdentList = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus().liftListItem("listItem").run();
+  }, [editor]);
 
   // Helper functions
   const triggerImageUpload = () => fileInputRef.current?.click();
@@ -695,36 +718,6 @@ export default function RichTextEditor({
     });
   };
 
-  // Enhanced list extensions with multiple levels
-  const CustomBulletList = BulletList.configure({
-    HTMLAttributes: {
-      class: "rich-text-bullet-list",
-    },
-  });
-
-  const CustomOrderedList = OrderedList.configure({
-    HTMLAttributes: {
-      class: "rich-text-ordered-list",
-    },
-  });
-
-  const CustomListItem = ListItem.configure({
-    HTMLAttributes: {
-      class: "rich-text-list-item",
-    },
-  });
-
-  // Add indent/outdent functions
-  const indentList = useCallback(() => {
-    if (!editor) return;
-    editor.chain().focus().sinkListItem("listItem").run();
-  }, [editor]);
-
-  const outdentList = useCallback(() => {
-    if (!editor) return;
-    editor.chain().focus().liftListItem("listItem").run();
-  }, [editor]);
-
   // Enhanced keyboard shortcuts with image deletion
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -757,6 +750,16 @@ export default function RichTextEditor({
               }
             }
             break;
+          case "]":
+            // Ctrl+] to indent
+            e.preventDefault();
+            indentList();
+            break;
+          case "[":
+            // Ctrl+[ to outdent
+            e.preventDefault();
+            outdentList();
+            break;
         }
       }
 
@@ -766,7 +769,7 @@ export default function RichTextEditor({
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [editor, readOnly, handleKeyDown, deleteImage]);
+  }, [editor, readOnly, handleKeyDown, deleteImage, indentList, outdentList]);
 
   // Add click listener for image selection
   useEffect(() => {
@@ -1074,8 +1077,8 @@ export default function RichTextEditor({
                   variant={editor.isActive("taskList") ? "solid" : "ghost"}
                 />
               </Tooltip>
-              {/* Add to the blocks and lists row */}
-              <Tooltip label="Indent list">
+
+              <Tooltip label="Indent list (Ctrl+])">
                 <IconButton
                   size="sm"
                   icon={<FaIndent />}
@@ -1087,7 +1090,7 @@ export default function RichTextEditor({
                 />
               </Tooltip>
 
-              <Tooltip label="Outdent list">
+              <Tooltip label="Outdent list (Ctrl+[)">
                 <IconButton
                   size="sm"
                   icon={<FaOutdent />}
@@ -1099,7 +1102,6 @@ export default function RichTextEditor({
                 />
               </Tooltip>
 
-              {/* Add delete table button */}
               <Tooltip label="Delete table">
                 <IconButton
                   size="sm"
@@ -1194,7 +1196,6 @@ export default function RichTextEditor({
                   colorScheme="gray"
                 />
               </Tooltip>
-              // Add this to your toolbar (in the alignment and media row)
               {editor?.isActive("image") && (
                 <Tooltip label="Delete image (Ctrl+D)">
                   <IconButton
@@ -1259,7 +1260,7 @@ export default function RichTextEditor({
             fontWeight: "bold !important",
             minWidth: "100px",
           },
-          // Enhanced list styling for multiple levels
+          // Enhanced multi-level list styling
           "& .rich-text-bullet-list": {
             listStyleType: "disc",
             paddingLeft: "1.5rem",
@@ -1270,10 +1271,6 @@ export default function RichTextEditor({
               "& .rich-text-bullet-list": {
                 listStyleType: "square",
                 margin: "0.25rem 0",
-                "& .rich-text-bullet-list": {
-                  listStyleType: "disc",
-                  margin: "0.25rem 0",
-                },
               },
             },
           },
@@ -1287,16 +1284,15 @@ export default function RichTextEditor({
               "& .rich-text-ordered-list": {
                 listStyleType: "lower-roman",
                 margin: "0.25rem 0",
-                "& .rich-text-ordered-list": {
-                  listStyleType: "decimal",
-                  margin: "0.25rem 0",
-                },
               },
             },
           },
           "& .rich-text-list-item": {
             margin: "0.25rem 0",
             lineHeight: "1.6",
+            "& p": {
+              margin: "0",
+            },
           },
           // Image styling
           "& .rich-text-image": {
@@ -1310,10 +1306,21 @@ export default function RichTextEditor({
             opacity: 0.6,
             border: `2px dashed ${borderColor} !important`,
           },
+          // Ensure proper spacing for nested lists
+          "& .ProseMirror ul, & .ProseMirror ol": {
+            margin: "0.5rem 0",
+          },
+          "& .ProseMirror li": {
+            margin: "0.25rem 0",
+          },
+          "& .ProseMirror li > ul, & .ProseMirror li > ol": {
+            margin: "0.25rem 0 0.25rem 1.5rem",
+          },
         }}
       >
         <EditorContent editor={editor} />
       </Box>
+
       {/* Link insertion modal */}
       <Modal isOpen={isLinkModalOpen} onClose={onLinkModalClose} size="md">
         <ModalOverlay />
