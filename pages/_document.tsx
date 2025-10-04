@@ -1,5 +1,6 @@
 // pages/_document.tsx
 import Document, { Html, Head, Main, NextScript, DocumentContext } from 'next/document';
+import i18nextConfig from '@/next-i18next.config';
 
 class MyDocument extends Document {
   static async getInitialProps(ctx: DocumentContext) {
@@ -8,8 +9,12 @@ class MyDocument extends Document {
   }
 
   render() {
+    // Get the current locale from the page props
+    const currentLocale = (this.props.__NEXT_DATA__.query.locale as string) || 
+                         i18nextConfig.i18n.defaultLocale;
+
     return (
-      <Html lang="en">
+      <Html lang={currentLocale} dir={currentLocale === 'ar' ? 'rtl' : 'ltr'}>
         <Head>
           {/* Preconnect to external domains for performance */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -36,8 +41,8 @@ class MyDocument extends Document {
           <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
           <link rel="manifest" href="/manifest.json" />
           
-          {/* Meta tags for security - these complement HTTP headers */}
-          <meta httpEquiv="Content-Security-Policy" content="" />
+          {/* REMOVED CSP meta tag - handled by middleware only */}
+          {/* Keep only the referrer meta tag */}
           <meta name="referrer" content="strict-origin-when-cross-origin" />
         </Head>
         <body>

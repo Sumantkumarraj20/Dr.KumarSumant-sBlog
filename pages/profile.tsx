@@ -42,6 +42,8 @@ import {
 } from "@/lib/cloudinary";
 import SEO from "@/components/Seo";
 import { UserProfile } from "@/types/auth";
+import { GetStaticProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 
 interface ProfileFormData {
   full_name: string;
@@ -518,3 +520,13 @@ export default function ProfilePage() {
     </>
   );
 }
+export const getStaticProps: GetStaticProps = async ({ locale }) => {
+
+  return {
+    props: {
+      locale: locale || 'en',
+      ...(await serverSideTranslations(locale || 'en', ['nav', 'common'])),
+    },
+    revalidate: 60,
+  };
+};

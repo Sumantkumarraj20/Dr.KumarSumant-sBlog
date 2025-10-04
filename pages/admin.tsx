@@ -34,6 +34,8 @@ import { useAuth } from "@/context/authContext";
 import { FiAlertCircle, FiBook, FiSave } from "react-icons/fi";
 import { useRouter } from "next/router";
 import SEO from "@/components/Seo";
+import { GetStaticProps } from "next";
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
 
 // Dynamically import sections for code-splitting
 const CourseAdmin = dynamic(() => import("@/components/admin/CourseAdmin"), {
@@ -401,3 +403,12 @@ export default function AdminPage() {
     </>
   );
 }
+
+export const getStaticProps: GetStaticProps = async ({ locale }) => {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale || "en", ["nav", "common"])),
+    },
+    revalidate: 60,
+  };
+};
