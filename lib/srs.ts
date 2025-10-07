@@ -1,27 +1,33 @@
 // lib/srs.ts
 import { supabase } from "./supabaseClient";
-import type { QuizQuestion } from "./adminApi"; // or where you keep types
 
 export type SRSRow = {
   id: string;
   user_id: string;
   question_id: string;
+  course_id?: string;
+  module_id?: string;
+  unit_id?: string;
+  lesson_id?: string;
   ease_factor: number;
   interval_days: number;
   repetitions: number;
+  correct_attempts: number;
+  wrong_attempts: number;
   last_reviewed: string | null;
   next_review: string | null;
-  quiz_questions?: QuizQuestion; // joined quiz question
+  last_viewed?: string | null;
+  score: number;
+  created_at: string;
+  updated_at: string;
+  quiz_questions?: any; // joined quiz question
 };
 
+// Your existing SM-2 algorithm remains the same
 function clampEF(ef: number) {
   return ef < 1.3 ? 1.3 : ef;
 }
 
-/**
- * SM-2 update
- * quality: 0..5
- */
 export function sm2Update(
   quality: number,
   prevEF = 2.5,
@@ -42,24 +48,65 @@ export function sm2Update(
     else interval = Math.max(1, Math.round(prevInterval * ef));
   }
 
-  // Update EF
   ef = prevEF + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
   ef = clampEF(ef);
 
   return { ease_factor: ef, repetitions, interval_days: interval };
 }
 
-/**
- * Fetch due SRS rows for a user (joins quiz_questions).
- * Returns up to `limit` cards ordered by next_review.
- */
+// FIXED: Record progress with proper hierarchical data
+export const recordProgress = async (
+  userId: string,
+  courseId?: string,
+  moduleId?: string,
+  unitId?: string,
+  lessonId?: string
+) => {
+  if (!userId || !lessonId) {
+    console.error("❌ userId and lessonId are required");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("user_srs_progress")
+    .upsert(
+      {
+        user_id: userId,
+        course_id: courseId,
+        module_id: moduleId,
+        unit_id: unitId,
+        lesson_id: lessonId,
+        last_viewed: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "user_lesson_unique", // Use the correct constraint name
+      }
+    );
+
+  if (error) {
+    console.error("❌ Error recording progress:", error);
+    throw error;
+  }
+};
+
+// OPTIMIZED: Fetch due cards with hierarchical context
 export async function fetchDueCards(userId: string, limit = 30) {
   if (!userId) return { data: [] as SRSRow[], error: "no-user" };
 
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from("user_srs_progress")
-    .select("*, quiz_questions(*)")
+    .select(`
+      *,
+      quiz_questions (
+        *,
+        lessons (title, unit_id, content),
+        units (title, module_id),
+        modules (title, course_id),
+        courses (title)
+      )
+    `)
     .eq("user_id", userId)
     .lte("next_review", nowIso)
     .order("next_review", { ascending: true })
@@ -68,19 +115,19 @@ export async function fetchDueCards(userId: string, limit = 30) {
   return { data: (data || []) as SRSRow[], error };
 }
 
-/**
- * Record a review with given quality (0..5).
- * Creates or updates a user_srs_progress row.
- * Returns the updated row.
- */
+// OPTIMIZED: Record review with hierarchical context
 export async function recordReview(
   userId: string,
   questionId: string,
-  quality: number
+  quality: number,
+  courseId?: string,
+  moduleId?: string,
+  unitId?: string,
+  lessonId?: string
 ) {
   if (!userId || !questionId) throw new Error("userId and questionId required");
 
-  // get existing row (if any)
+  // Get existing row with hierarchical data
   const { data: existing, error: fetchErr } = await supabase
     .from("user_srs_progress")
     .select("*")
@@ -120,12 +167,26 @@ export async function recordReview(
   const payload = {
     user_id: userId,
     question_id: questionId,
+    course_id: courseId,
+    module_id: moduleId,
+    unit_id: unitId,
+    lesson_id: lessonId,
     ease_factor,
     interval_days,
     repetitions,
+    correct_attempts: existing?.correct_attempts || 0,
+    wrong_attempts: existing?.wrong_attempts || 0,
     last_reviewed: now.toISOString(),
     next_review: nextReviewDate,
+    updated_at: now.toISOString(),
   };
+
+  // Update correct/wrong attempts based on quality
+  if (quality >= 3) {
+    payload.correct_attempts = (existing?.correct_attempts || 0) + 1;
+  } else {
+    payload.wrong_attempts = (existing?.wrong_attempts || 0) + 1;
+  }
 
   if (rowId) {
     const { data, error } = await supabase
@@ -136,25 +197,36 @@ export async function recordReview(
       .single();
     return { data, error };
   } else {
-    // insert new row
     const { data, error } = await supabase
       .from("user_srs_progress")
-      .insert(payload)
+      .insert({
+        ...payload,
+        created_at: now.toISOString(),
+      })
       .select()
       .single();
     return { data, error };
   }
 }
 
-/**
- * Convenience: call from quiz after user answers question.
- * qualityForAnswer: if correct -> 4 (Good), incorrect -> 2 (Fail/Again)
- */
+// OPTIMIZED: Record quiz answer with full context
 export async function recordQuizAnswer(
   userId: string,
   questionId: string,
-  correct: boolean
+  correct: boolean,
+  courseId?: string,
+  moduleId?: string,
+  unitId?: string,
+  lessonId?: string
 ) {
   const quality = correct ? 4 : 2;
-  return recordReview(userId, questionId, quality);
+  return recordReview(
+    userId, 
+    questionId, 
+    quality, 
+    courseId, 
+    moduleId, 
+    unitId, 
+    lessonId
+  );
 }

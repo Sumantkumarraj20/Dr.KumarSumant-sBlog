@@ -128,13 +128,33 @@ export default function LessonPage({ unit, userId, onBack, onSelectLesson }: Pro
         completed = lastQuiz.passed || false;
       }
 
+      // Estimate time spent: use quiz attempts timestamps window (if available)
+      let timeSpent = 0;
+      try {
+        if (quizAttempts && quizAttempts.length > 0) {
+          const times = quizAttempts
+            .map((a: any) => new Date(a.attempted_at).getTime())
+            .filter(Boolean)
+            .sort((a: number, b: number) => a - b);
+          if (times.length >= 2) {
+            // convert ms to minutes
+            timeSpent = Math.round((times[times.length - 1] - times[0]) / 60000);
+          } else if (times.length === 1) {
+            // Single attempt — assign a default of 5-15 minutes depending on score
+            timeSpent = lastQuiz?.score ? Math.min(30, Math.max(5, Math.round((lastQuiz.score / 100) * 20))) : 10;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to estimate timeSpent for lesson", lessonId, e);
+      }
+
       const progress: LessonProgress = {
         percent,
         completed,
         quizScore: lastQuiz?.score,
         srsReviews,
         lastAccessed: courseProg?.last_accessed || lastQuiz?.attempted_at,
-        timeSpent: Math.floor(Math.random() * 45) + 5 // Mock data - replace with actual tracking
+        timeSpent,
       };
 
       // Update cache

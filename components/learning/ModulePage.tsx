@@ -1,6 +1,7 @@
 "use client";
 
-import { fetchModules, fetchModuleProgress } from "@/lib/learn";
+import { fetchModules, fetchModuleProgress, fetchUnits } from "@/lib/learn";
+import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   SimpleGrid,
@@ -71,18 +72,39 @@ export default function ModulePage({ course, userId, onBack, onSelectModule }: P
   const calculateModuleProgress = useCallback(async (moduleId: string): Promise<ModuleProgress> => {
     try {
       const progress = await fetchModuleProgress(userId, moduleId);
-      
-      // Mock additional data - replace with actual API calls
-      const unitCount = Math.floor(Math.random() * 6) + 2; // 2-7 units
-      const completedUnits = Math.floor((progress / 100) * unitCount);
-      const estimatedTime = unitCount * 45; // 45 minutes per unit
-      
+      // Fetch real unit count
+      let unitCount = 0;
+      let lastAccessed: string | undefined = undefined;
+      try {
+        const units = await fetchUnits(moduleId);
+        unitCount = units?.length || 0;
+      } catch (e) {
+        console.warn("Failed to fetch units for module", moduleId, e);
+      }
+
+      const completedUnits = Math.round(((progress || 0) / 100) * unitCount);
+      const estimatedTime = unitCount * 45; // conservative estimate: 45 minutes per unit
+
+      // Try to fetch last_accessed aggregated for the module from user_course_progress
+      try {
+        const { data, error } = await supabase
+          .from("user_course_progress")
+          .select("last_accessed")
+          .eq("user_id", userId)
+          .eq("current_module_id", moduleId)
+          .maybeSingle();
+
+        if (!error && data) lastAccessed = data.last_accessed;
+      } catch (e) {
+        console.warn("Failed to fetch last_accessed for module", moduleId, e);
+      }
+
       return {
         progress: progress || 0,
         unitCount,
         completedUnits,
         estimatedTime,
-        lastAccessed: new Date().toISOString() // Mock data
+        lastAccessed,
       };
     } catch (error) {
       console.error("Error calculating module progress:", error);

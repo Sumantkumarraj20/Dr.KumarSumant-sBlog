@@ -1,6 +1,7 @@
 "use client";
 
-import { fetchUnits, fetchUnitProgress } from "@/lib/learn";
+import { fetchUnits, fetchUnitProgress, fetchLessons } from "@/lib/learn";
+import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   SimpleGrid,
@@ -67,18 +68,42 @@ export default function UnitPage({ module, userId, onBack, onSelectUnit }: Props
   const calculateUnitProgress = useCallback(async (unitId: string): Promise<UnitProgress> => {
     try {
       const progress = await fetchUnitProgress(userId, unitId);
-      
-      // Mock additional data - replace with actual API calls
-      const lessonCount = Math.floor(Math.random() * 8) + 3; // 3-10 lessons
-      const completedLessons = Math.floor((progress / 100) * lessonCount);
-      const estimatedTime = lessonCount * 15; // 15 minutes per lesson
-      
+      // Get real lesson count for the unit
+      let lessonCount = 0;
+      let lastAccessed: string | undefined = undefined;
+      try {
+        const lessons = await fetchLessons(unitId);
+        lessonCount = lessons?.length || 0;
+      } catch (e) {
+        console.warn("Failed to fetch lessons for unit", unitId, e);
+      }
+
+      // Derive completed lessons from progress percentage and lesson count
+      const completedLessons = Math.round(((progress || 0) / 100) * lessonCount);
+      const estimatedTime = lessonCount * 15; // conservative estimate: 15 minutes per lesson
+
+      // Try to obtain last_accessed from user_course_progress row for this unit
+      try {
+        const { data, error } = await supabase
+          .from("user_course_progress")
+          .select("last_accessed")
+          .eq("user_id", userId)
+          .eq("current_unit_id", unitId)
+          .maybeSingle();
+
+        if (!error && data) {
+          lastAccessed = data.last_accessed;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch last_accessed for unit", unitId, e);
+      }
+
       return {
         progress: progress || 0,
         lessonCount,
         completedLessons,
         estimatedTime,
-        lastAccessed: new Date().toISOString() // Mock data
+        lastAccessed,
       };
     } catch (error) {
       console.error("Error calculating unit progress:", error);

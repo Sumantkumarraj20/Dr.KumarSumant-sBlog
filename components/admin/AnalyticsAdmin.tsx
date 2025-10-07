@@ -232,25 +232,38 @@ const AnalyticsAdmin = () => {
       const avgEaseFactor = srsProgress?.length > 0 ? 
         srsProgress.reduce((sum, card) => sum + (card.ease_factor || 2.5), 0) / srsProgress.length : 2.5;
 
-      // Generate user growth data (simplified)
-      const userGrowth = {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-        data: [120, 190, 300, 500, 200, 300],
+      // Build user growth data by daily buckets in the selected range
+      const generateDateLabels = (start: Date, end: Date) => {
+        const labels: string[] = [];
+        const cur = new Date(start);
+        while (cur <= end) {
+          labels.push(cur.toISOString().slice(0, 10));
+          cur.setDate(cur.getDate() + 1);
+        }
+        return labels;
       };
 
-      // Course performance data
-      const coursePerformance = courses?.map(course => {
-        const courseProgress = userProgress?.filter(p => p.course_id === course.id) || [];
+      const start = startDate;
+      const end = now;
+      const dateLabels = generateDateLabels(start, end);
+      const userGrowthData = dateLabels.map((d) =>
+        (profiles || []).filter((p: any) => p.created_at && p.created_at.slice(0, 10) === d).length || 0
+      );
+
+      const userGrowth = { labels: dateLabels, data: userGrowthData };
+
+      // Course performance computed from user progress and quiz attempts
+      const coursePerformance = (courses || []).map((course: any) => {
+        const courseProgress = (userProgress || []).filter((p: any) => p.course_id === course.id) || [];
         const enrolled = courseProgress.length;
-        const completed = courseProgress.filter(p => p.completed_lessons >= p.total_lessons).length;
-        const courseAttempts = quizAttempts?.filter(a => 
-          courseProgress.some(p => p.user_id === a.user_id)
+        const completed = courseProgress.filter((p: any) => p.completed_lessons >= (p.total_lessons || 0)).length;
+        const courseAttempts = (quizAttempts || []).filter((a: any) =>
+          courseProgress.some((p: any) => p.user_id === a.user_id)
         ) || [];
-        const avgScore = courseAttempts.length > 0 ? 
-          Math.round(courseAttempts.reduce((sum, a) => sum + (a.score || 0), 0) / courseAttempts.length) : 0;
-        
+        const avgScore = courseAttempts.length > 0 ? Math.round(courseAttempts.reduce((sum: number, a: any) => sum + (a.score || 0), 0) / courseAttempts.length) : 0;
+
         return {
-          course: course.title,
+          course: course.title || 'Untitled',
           enrolled,
           completed,
           avgScore,
@@ -258,27 +271,42 @@ const AnalyticsAdmin = () => {
         };
       }) || [];
 
-      // Quiz analytics
+      // Quiz analytics: aggregate by quiz id
+      const quizById: Record<string, { scores: number[]; attempts: number }> = {};
+      (quizAttempts || []).forEach((a: any) => {
+        const qid = a.quiz_id || 'unknown';
+        if (!quizById[qid]) quizById[qid] = { scores: [], attempts: 0 };
+        if (typeof a.score === 'number') quizById[qid].scores.push(a.score);
+        quizById[qid].attempts += 1;
+      });
+
+      const quizIds = Object.keys(quizById).slice(0, 6);
       const quizAnalytics = {
-        labels: ['Basic', 'Intermediate', 'Advanced', 'Expert'],
-        scores: [75, 68, 82, 65],
-        attempts: [45, 32, 28, 15],
+        labels: quizIds,
+        scores: quizIds.map((id) => {
+          const s = quizById[id].scores;
+          return s.length ? Math.round(s.reduce((x, y) => x + y, 0) / s.length) : 0;
+        }),
+        attempts: quizIds.map((id) => quizById[id].attempts || 0),
       };
 
-      // User activity data
-      const userActivity = recentUsers?.map(profile => ({
-        user: profile,
-        lastActivity: new Date().toISOString(), // Simplified
-        coursesEnrolled: Math.floor(Math.random() * 5) + 1,
-        lessonsCompleted: Math.floor(Math.random() * 20) + 1,
-        avgScore: Math.floor(Math.random() * 30) + 70,
-        streak: Math.floor(Math.random() * 10) + 1,
-      })) || [];
+      // User activity from recent users and available progress/attempts
+      const userActivity = (recentUsers || []).map((profile: any) => {
+        const coursesEnrolled = (userProgress || []).filter((p: any) => p.user_id === profile.id).length;
+        const lessonsCompleted = (userProgress || []).filter((p: any) => p.user_id === profile.id).reduce((sum: number, p: any) => sum + (p.completed_lessons || 0), 0);
+        const userAttempts = (quizAttempts || []).filter((a: any) => a.user_id === profile.id);
+        const avgScore = userAttempts.length ? Math.round(userAttempts.reduce((s: number, a: any) => s + (a.score || 0), 0) / userAttempts.length) : 0;
+        return {
+          user: profile,
+          lastActivity: profile?.updated_at || profile?.created_at || new Date().toISOString(),
+          coursesEnrolled,
+          lessonsCompleted,
+          avgScore,
+          streak: 0,
+        };
+      }) || [];
 
-      // Top performers
-      const topPerformers = userActivity
-        .sort((a, b) => b.avgScore - a.avgScore)
-        .slice(0, 5);
+      const topPerformers = userActivity.slice().sort((a, b) => b.avgScore - a.avgScore).slice(0, 5);
 
       const analyticsData: AnalyticsData = {
         overview: {

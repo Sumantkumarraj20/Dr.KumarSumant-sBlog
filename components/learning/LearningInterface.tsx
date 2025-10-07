@@ -25,8 +25,12 @@ import {
 import { JSONContent } from "@tiptap/react";
 import { supabase } from "@/lib/supabaseClient";
 import { RichTextView } from "../RichTextView";
-import { recordReview as recordReviewIfExists } from "@/lib/srs";
-import type { Lesson, Unit, QuizQuestion } from "@/types/learn";
+import {
+  recordProgress,
+  recordQuizAnswer,
+  recordReview as recordReviewIfExists,
+} from "@/lib/srs";
+import type { Lesson, Unit, Module, QuizQuestion } from "@/types/learn";
 
 // Local types matching your database schema
 type QuizQuestionRow = {
@@ -44,6 +48,7 @@ type QuizQuestionRow = {
 type LearningInterfaceProps = {
   courseId: string;
   unit?: Unit;
+  module?: Module;
   lessons: Lesson[];
   userId: string;
   startIndex?: number;
@@ -54,6 +59,7 @@ type LearningInterfaceProps = {
 
 export default function LearningInterface({
   courseId,
+  module,
   unit,
   lessons,
   userId,
@@ -353,67 +359,86 @@ export default function LearningInterface({
     isCorrect: boolean
   ) => {
     try {
-      const { data: existing, error: fetchErr } = await supabase
-        .from("user_srs_progress")
-        .select("*")
-        .eq("user_id", user_id)
-        .eq("question_id", question_id)
-        .maybeSingle();
-
-      if (fetchErr) throw fetchErr;
-
-      const now = new Date().toISOString();
-      if (existing) {
-        const updates: any = {
-          updated_at: now,
-          last_reviewed: now,
-        };
-        if (isCorrect) {
-          updates.correct_attempts = (existing.correct_attempts || 0) + 1;
-          updates.repetitions = (existing.repetitions || 0) + 1;
-        } else {
-          updates.wrong_attempts = (existing.wrong_attempts || 0) + 1;
-          updates.repetitions = 0;
-        }
-        // SRS algorithm updates
-        if (isCorrect) {
-          updates.ease_factor = Math.max(
-            1.3,
-            (existing.ease_factor || 2.5) - 0.05
-          );
-          updates.interval_days = Math.min(
-            365,
-            (existing.interval_days || 1) * 2
-          );
-        } else {
-          updates.ease_factor = (existing.ease_factor || 2.5) + 0.1;
-          updates.interval_days = 1;
-        }
-
-        await supabase
-          .from("user_srs_progress")
-          .update(updates)
-          .eq("id", existing.id);
-      } else {
-        await supabase.from("user_srs_progress").insert({
-          user_id,
-          question_id,
-          ease_factor: isCorrect ? 2.5 : 2.5,
-          interval_days: isCorrect ? 1 : 1,
-          repetitions: isCorrect ? 1 : 0,
-          correct_attempts: isCorrect ? 1 : 0,
-          wrong_attempts: isCorrect ? 0 : 1,
-          last_reviewed: now,
-          next_review: isCorrect
-            ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-            : null,
-          score: isCorrect ? 1 : 0,
-          created_at: now,
-          updated_at: now,
-        });
-      }
+      // Use your optimized SRS library
+      await recordQuizAnswer(
+        user_id,
+        question_id,
+        isCorrect,
+        courseId,
+        module?.id ? module.id :
+        lesson?.unit_id ? undefined : undefined, // module_id not directly available
+        unit?.id,
+        lesson?.id
+      );
     } catch (err) {
-      console.error("updateSRSForQuestion error", err);
+      console.error("SRS update failed", err);
+      // Fallback to simple update
+      await simpleSRSFallback(user_id, question_id, isCorrect);
+    }
+  };
+
+  // Simple fallback without SM-2 algorithm
+  const simpleSRSFallback = async (
+    user_id: string,
+    question_id: string,
+    isCorrect: boolean
+  ) => {
+    const now = new Date().toISOString();
+    const { data: existing } = await supabase
+      .from("user_srs_progress")
+      .select("*")
+      .eq("user_id", user_id)
+      .eq("question_id", question_id)
+      .maybeSingle();
+
+    const basePayload = {
+      user_id,
+      question_id,
+      course_id: courseId,
+      unit_id: unit?.id,
+      lesson_id: lesson?.id,
+      updated_at: now,
+      last_reviewed: now,
+    };
+
+    if (existing) {
+      await supabase
+        .from("user_srs_progress")
+        .update({
+          ...basePayload,
+          correct_attempts: isCorrect
+            ? (existing.correct_attempts || 0) + 1
+            : existing.correct_attempts,
+          wrong_attempts: !isCorrect
+            ? (existing.wrong_attempts || 0) + 1
+            : existing.wrong_attempts,
+          repetitions: isCorrect ? (existing.repetitions || 0) + 1 : 0,
+          ease_factor: isCorrect
+            ? Math.max(1.3, (existing.ease_factor || 2.5) - 0.05)
+            : (existing.ease_factor || 2.5) + 0.1,
+          interval_days: isCorrect
+            ? Math.min(365, (existing.interval_days || 1) * 2)
+            : 1,
+          next_review: isCorrect
+            ? new Date(
+                Date.now() + (existing.interval_days || 1) * 24 * 60 * 60 * 1000
+              ).toISOString()
+            : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("user_srs_progress").insert({
+        ...basePayload,
+        ease_factor: 2.5,
+        interval_days: 1,
+        repetitions: isCorrect ? 1 : 0,
+        correct_attempts: isCorrect ? 1 : 0,
+        wrong_attempts: isCorrect ? 0 : 1,
+        next_review: isCorrect
+          ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          : null,
+        created_at: now,
+      });
     }
   };
 
@@ -498,33 +523,28 @@ export default function LearningInterface({
     }
   };
 
-  const handleAnswer = async (option: string) => {
-    if (!deck[currentIdx] || selectedOption) return;
-    setSelectedOption(option);
+ const handleAnswer = async (option: string) => {
+  if (!deck[currentIdx] || selectedOption) return;
+  setSelectedOption(option);
 
-    const isCorrect = deck[currentIdx].correct_answer.includes(option);
-    if (isCorrect) setScore((prev) => ({ ...prev, correct: prev.correct + 1 }));
+  const isCorrect = deck[currentIdx].correct_answer.includes(option);
+  if (isCorrect) setScore((prev) => ({ ...prev, correct: prev.correct + 1 }));
 
-    // Record SRS
-    try {
-      if (typeof recordReviewIfExists === "function") {
-        try {
-          await recordReviewIfExists(
-            userId,
-            deck[currentIdx].id,
-            isCorrect ? 4 : 0
-          );
-        } catch (e) {
-          await updateSRSForQuestion(userId, deck[currentIdx].id, isCorrect);
-        }
-      } else {
-        await updateSRSForQuestion(userId, deck[currentIdx].id, isCorrect);
-      }
-    } catch (err) {
-      console.error("SRS update failed", err);
-    }
+  // Record SRS progress
+  try {
+    await updateSRSForQuestion(userId, deck[currentIdx].id, isCorrect);
+  } catch (err) {
+    console.error("SRS update error:", err);
+  }
 
-    setTimeout(async () => {
+  // Record general progress
+  try {
+    await recordProgress(userId, courseId, undefined, unit?.id, lesson?.id);
+  } catch (err) {
+    console.error("Progress recording error:", err);
+  }
+
+  setTimeout(async () => {
       const next = currentIdx + 1;
       if (next < deck.length) {
         setCurrentIdx(next);
