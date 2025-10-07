@@ -80,7 +80,8 @@ export const recordProgress = async (
         updated_at: new Date().toISOString(),
       },
       {
-        onConflict: "user_lesson_unique", // Use the correct constraint name
+        // Use column list for on_conflict to avoid Postgres "column does not exist"
+        onConflict: "user_id,lesson_id",
       }
     );
 

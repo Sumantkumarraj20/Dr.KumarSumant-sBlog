@@ -4,5 +4,10 @@
   "blog": "ब्लॉग",
   "learn": "सीखें",
   "contact": "संपर्क",
-  "language": "भाषा"
+  "language": "भाषा",
+  "profile": "प्रोफ़ाइल",
+  "signin": "साइन इन",
+  "signout": "साइन आउट",
+  "signing_out": "साइन आउट हो रहा है...",
+  "admin": "प्रशासन"
 }

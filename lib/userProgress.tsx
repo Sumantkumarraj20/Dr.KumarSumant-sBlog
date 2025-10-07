@@ -11,7 +11,7 @@ export const recordProgress = async (
 
   const { error } = await supabase
     .from("user_srs_progress")
-    .upsert(
+      .upsert(
       {
         user_id: userId,
         course_id: courseId,
@@ -19,10 +19,14 @@ export const recordProgress = async (
         unit_id: unitId,
         lesson_id: lessonId,
         last_viewed: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
       {
-        // 👇 this must be the name of a UNIQUE constraint/index in your DB
-        onConflict: "user_id_lesson_id_unique",
+        // Supabase/PostgREST expects the `on_conflict` query param to be a
+        // comma-separated list of column names. Previously this used a
+        // constraint name which caused a 42703 (column does not exist) error.
+        // Use the natural unique key columns instead.
+        onConflict: "user_id,lesson_id",
       }
     );
 

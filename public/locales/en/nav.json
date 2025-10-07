@@ -2,7 +2,12 @@
   "home": "Home",
   "about": "About",
   "blog": "Blog",
-  "learn": "learn",
+  "learn": "Learn",
   "contact": "Contact",
-  "language": "Language"
+  "language": "Language",
+  "profile": "Profile",
+  "signin": "Sign in",
+  "signout": "Sign out",
+  "signing_out": "Signing out...",
+  "admin": "Admin"
 }

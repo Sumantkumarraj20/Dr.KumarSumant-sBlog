@@ -48,7 +48,7 @@ import { AnimatePresence, motion } from "framer-motion";
 const MotionBox = motion.create ? motion.create(Box) : motion(Box);
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { t } = useTranslation("nav");
+  const { t } = useTranslation(["nav", "common"]);
   const router = useRouter();
   const { colorMode, toggleColorMode } = useColorMode();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -73,11 +73,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   const navLinks = [
-    { href: "/", label: t("home"), icon: HomeIcon },
-    { href: "/about", label: t("about"), icon: UserCircleIcon },
-    { href: "/blog", label: t("blog"), icon: PencilSquareIcon },
-    { href: "/learn", label: t("learn"), icon: AcademicCapIcon },
-    { href: "/contact", label: t("contact"), icon: EnvelopeIcon },
+    { href: "/", label: t("home") || "Home", icon: HomeIcon },
+    { href: "/about", label: t("about") || "About", icon: UserCircleIcon },
+    { href: "/blog", label: t("blog") || "Blog", icon: PencilSquareIcon },
+    { href: "/learn", label: t("learn") || "Learn", icon: AcademicCapIcon },
+    { href: "/contact", label: t("contact") || "Contact", icon: EnvelopeIcon },
   ];
 
   const { user, loading: authLoading, profile, signOut } = useAuth(); // Use signOut from context
@@ -119,7 +119,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* Mobile Hamburger */}
               <Box display={{ base: "flex", md: "none" }}>
                 <IconButton
-                  aria-label="Open menu"
+                  aria-label={t("open_menu") || "Open menu"}
                   icon={<Bars3Icon className="w-6 h-6" />}
                   variant="ghost"
                   onClick={onOpen}
@@ -134,7 +134,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 className="flex items-center gap-2 font-bold text-2xl hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               >
                 <GlobeAltIcon className="w-7 h-7 text-blue-600" />
-                <Text display={{ base: "none", sm: "block" }}>RIPY</Text>
+                <Text display={{ base: "none", sm: "block" }}>{t("brand","Dr. Kumar Sumant")}</Text>
               </Link>
             </Flex>
 
@@ -190,7 +190,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
               {/* Admin link for desktop */}
               {isAdmin && (
-                <Tooltip label="Admin" placement="bottom">
+                <Tooltip label={t("admin","Admin")} placement="bottom">
                   <Link href="/admin">
                     <Button
                       variant="ghost"
@@ -215,7 +215,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       fontWeight="medium"
                       px={3}
                     >
-                      <Text display={{ base: "none", lg: "block" }}>Admin</Text>
+                      <Text display={{ base: "none", lg: "block" }}>{t("admin","Admin")}</Text>
                     </Button>
                   </Link>
                 </Tooltip>
@@ -259,7 +259,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
               {/* Dark Mode Toggle */}
               <Tooltip
-                label={colorMode === "light" ? "Dark mode" : "Light mode"}
+                label={colorMode === "light" ? t("dark_mode") || "Dark mode" : t("light_mode") || "Light mode"}
               >
                 <IconButton
                   aria-label="Toggle dark mode"
@@ -389,9 +389,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {user ? (
                       <VStack spacing={2} align="stretch">
                         <HStack justify="space-between" px={2}>
-                          <Text fontSize="sm" fontWeight="medium">
-                            {user.email}
-                          </Text>
+                                <Text fontSize="sm" fontWeight="medium">
+                                  {user.email}
+                                </Text>
                           <Avatar
                             size="sm"
                             name={user.email || "User"}
@@ -420,7 +420,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                           size="lg"
                         >
                           {authLoading
-                            ? "Signing out..."
+                            ? t("signing_out") || "Signing out..."
                             : t("signout") || "Sign out"}
                         </Button>
                       </VStack>
@@ -490,8 +490,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             fontSize="sm"
             color={footerTextColor}
           >
-            © {new Date().getFullYear()} Dr. Kumar Sumant · Evidence-based
-            patient education
+            {t("footer", { year: new Date().getFullYear() })}
           </Box>
         </Box>
       </Flex>

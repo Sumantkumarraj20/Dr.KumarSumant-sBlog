@@ -1,4 +1,9 @@
 {
-  "Dr. Kumar Sumant": "Dr. Kumar Sumant",
-   "Menu": "Menu"
+  "brand": "Dr. Kumar Sumant",
+  "menu": "Menu",
+  "footer": "© {{year}} Dr. Kumar Sumant · Evidence-based patient education",
+  "dark_mode": "Dark mode",
+  "light_mode": "Light mode",
+  "open_menu": "Open menu",
+  "admin": "Admin"
 }

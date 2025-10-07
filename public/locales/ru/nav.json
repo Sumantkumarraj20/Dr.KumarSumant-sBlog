@@ -2,7 +2,12 @@
   "home": "Главная",
   "about": "Обо мне",
   "blog": "Блог",
-  "learn": " учитесь",
+  "learn": "Учиться",
   "contact": "Контакты",
-  "language": "Язык"
+  "language": "Язык",
+  "profile": "Профиль",
+  "signin": "Войти",
+  "signout": "Выйти",
+  "signing_out": "Выход...",
+  "admin": "Админ"
 }

@@ -241,6 +241,12 @@ export default function RichTextEditor({
         bulletList: false, // Disable default to use our custom one
         orderedList: false, // Disable default to use our custom one
         listItem: false, // Disable default to use our custom one
+        // Disable these built-in StarterKit extensions because we register
+        // them separately below (Dropcursor, Gapcursor, Link, Underline).
+        dropcursor: false,
+        gapcursor: false,
+        link: false,
+        underline: false,
       }),
       Dropcursor.configure({ width: 2, color: "#3B82F6" }),
       Gapcursor,
