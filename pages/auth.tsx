@@ -401,7 +401,7 @@ export default function AuthPage() {
                     <FormControl isInvalid={!!errors.email}>
                       <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Email Address</FormLabel>
                       <InputGroup>
-                        <Input type="email" placeholder="your.email@example.com" value={formData.email} onChange={(e) => updateFormField("email", e.target.value)} size="lg" focusBorderColor={accentColor} bg={inputBg} pl={10} />
+                        <Input type="email" placeholder="you@your-domain.com" value={formData.email} onChange={(e) => updateFormField("email", e.target.value)} size="lg" focusBorderColor={accentColor} bg={inputBg} pl={10} />
                         <InputRightElement pointerEvents="none" h="full"><FiMail color="gray.400" /></InputRightElement>
                       </InputGroup>
                       <FormErrorMessage>{errors.email}</FormErrorMessage>

@@ -64,4 +64,4 @@ Publishing checklist
 
 ---
 
-If you want I can auto-insert an example MCQ into each existing MDX post (English first), then you can provide translations for the localized posts. Reply "Insert MCQs into English posts" to continue.
+This file contains optional example MCQs that authors can copy into MDX posts. Do not rely on automated insertion; manually review and translate examples before publishing.

@@ -139,12 +139,13 @@ export default function ModulePage({ course, userId, onBack, onSelectModule }: P
 
       setModules(sortedModules);
 
-      // Load progress for all modules in parallel
-      const progressPromises = sortedModules.map(module => 
-        calculateModuleProgress(module.id)
+      // Load progress for all modules in parallel with limited concurrency
+      const { mapWithConcurrency } = await import("@/lib/concurrency");
+      const progressResults = await mapWithConcurrency(
+        sortedModules,
+        (module: any) => calculateModuleProgress(module.id),
+        4
       );
-      
-      const progressResults = await Promise.all(progressPromises);
       
       const newProgressMap: Record<string, ModuleProgress> = {};
       sortedModules.forEach((module, index) => {

@@ -174,12 +174,13 @@ export default function LessonPage({ unit, userId, onBack, onSelectLesson }: Pro
       const lessonList = await fetchLessons(unit.id);
       setLessons(lessonList);
 
-      // Load progress for all lessons in parallel with limited concurrency
-      const progressPromises = lessonList.map(lesson => 
-        calculateLessonProgress(lesson.id)
+      // Load progress for all lessons with limited concurrency to avoid DB overload
+      const { mapWithConcurrency } = await import("@/lib/concurrency");
+      const progressResults = await mapWithConcurrency(
+        lessonList,
+        (lesson: any) => calculateLessonProgress(lesson.id),
+        4
       );
-      
-      const progressResults = await Promise.all(progressPromises);
       
       const newProgressMap: Record<string, LessonProgress> = {};
       lessonList.forEach((lesson, index) => {

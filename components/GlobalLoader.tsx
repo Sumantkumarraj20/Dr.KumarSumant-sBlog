@@ -62,13 +62,14 @@ export default function GlobalLoader() {
     startRef.current = Date.now();
     setProgress(5);
     setVisible(true);
+    // deterministic eased increment to avoid randomness and improve predictability
     timerRef.current = window.setInterval(() => {
       setProgress((p) => {
         if (p >= 95) return p;
-        // slower as it approaches 100
         const decay = 1 - p / 100;
-        const delta = Math.max(0.2, Math.random() * 3 * decay);
-        return Math.min(95, Math.round((p + delta) * 10) / 10);
+        // ease-out cubic step scaled to remain small
+        const step = Math.max(0.2, Math.pow(decay, 2) * 3);
+        return Math.min(95, Math.round((p + step) * 10) / 10);
       });
     }, 220);
   };

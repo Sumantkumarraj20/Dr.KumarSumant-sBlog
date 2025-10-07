@@ -362,7 +362,7 @@ export default function Contact() {
                           onChange={(e) =>
                             handleInputChange("email", e.target.value)
                           }
-                          placeholder="your.email@example.com"
+                          placeholder="you@your-domain.com"
                           isDisabled={!!user} // Disable for authenticated users
                           bg={user ? "gray.50" : "white"}
                           _disabled={{

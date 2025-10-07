@@ -132,12 +132,13 @@ export default function UnitPage({ module, userId, onBack, onSelectUnit }: Props
 
       setUnits(normalizedUnits);
 
-      // Load progress for all units in parallel
-      const progressPromises = normalizedUnits.map(unit => 
-        calculateUnitProgress(unit.id)
+      // Load progress for all units with limited concurrency
+      const { mapWithConcurrency } = await import("@/lib/concurrency");
+      const progressResults = await mapWithConcurrency(
+        normalizedUnits,
+        (unit: any) => calculateUnitProgress(unit.id),
+        4
       );
-      
-      const progressResults = await Promise.all(progressPromises);
       
       const newProgressMap: Record<string, UnitProgress> = {};
       normalizedUnits.forEach((unit, index) => {
